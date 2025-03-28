@@ -9,9 +9,3 @@ extern "C" void call_hello_kernel() {
     hello_kernel<<<1, 1>>>();
     cudaDeviceSynchronize();  // Wait for the kernel to finish.
 }
-
-int main() {
-    // Call the wrapper function for testing purposes.
-    call_hello_kernel();
-    return 0;
-}
