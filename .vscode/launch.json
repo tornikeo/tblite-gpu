@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "preLaunchTask": "Build CUDA",
+            "name": "CUDA Debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceRoot}/main.exe",
+            "args": [],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb"
+        }
+    ],
+    "compounds": []
+}

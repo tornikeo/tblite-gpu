@@ -1,0 +1,19 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build CUDA",
+            "type": "shell",
+            "command": "/home/tornikeo/micromamba/envs/pb/bin/nvcc",
+            "args": [
+                "-ccbin", "g++-11",
+                "${workspaceFolder}/main.cu", "-o", "${workspaceFolder}/main.exe"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$nvcc"]
+        }
+    ]
+}

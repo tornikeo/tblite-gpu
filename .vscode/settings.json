@@ -1,0 +1,7 @@
+{
+    "C_Cpp.default.compilerPath": "/home/tornikeo/micromamba/envs/pb/bin/nvcc",
+    "C_Cpp.default.intelliSenseMode": "linux-gcc-x64",
+    "files.associations": {
+        "*.cu": "cuda-cpp",
+    }
+}
