@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <iostream>
 #include "types.cuh"
 
 __global__ void hello_kernel() {
@@ -8,6 +9,8 @@ __global__ void hello_kernel() {
 }
 
 extern "C" {
+
+
     void get_vec_(
             const double* xyz_iat,
             const double* xyz_jat,
@@ -58,3 +61,5 @@ extern "C" {
         // 
     }
 }
+
+
