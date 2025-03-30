@@ -4,12 +4,17 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/home/tornikeo/micromamba/envs/pb/include"
+                "/home/tornikeo/micromamba/envs/pb/include/**"
             ],
-            "intelliSenseMode": "linux-gcc-x64",
+            "defines": [],
             "compilerPath": "/home/tornikeo/micromamba/envs/pb/bin/nvcc",
             "cStandard": "c17",
-            "cppStandard": "gnu++17"
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-x64",
+            "configurationProvider": "mesonbuild.mesonbuild",
+            "compilerArgs": [
+                "-ccbin=g++-11"
+            ]
         }
     ],
     "version": 4

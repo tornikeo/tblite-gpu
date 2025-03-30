@@ -1,20 +1,25 @@
 {
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "preLaunchTask": "Build CUDA",
-            "name": "CUDA Debug",
-            "type": "cppdbg",
+            "name": "CUDA C++: Launch",
+            "type": "cuda-gdb",
             "request": "launch",
-            "program": "${workspaceRoot}/main.exe",
-            "args": [],
-            "stopAtEntry": true,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "miDebuggerPath": "/usr/bin/gdb"
+            "program": "${workspaceFolder}/test-kernel"
+        },
+        {
+            "name": "CUDA C++: Launch",
+            "type": "cuda-gdb",
+            "request": "launch",
+            "program": ""
+        },
+        {
+            "name": "CUDA C++: Attach",
+            "type": "cuda-gdb",
+            "request": "attach"
         }
-    ],
-    "compounds": []
+    ]
 }
