@@ -8,7 +8,7 @@
             "name": "CUDA C++: Launch",
             "type": "cuda-gdb",
             "request": "launch",
-            "program": "${workspaceFolder}/test-kernel"
+            "program": "${workspaceFolder}/kernel.bin"
         },
         {
             "name": "CUDA C++: Launch",
