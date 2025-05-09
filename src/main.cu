@@ -281,8 +281,48 @@ __global__ void get_hamiltonian()
   printf("Hello from inside the kernel\n");
 }
 
-extern "C"
+
+void printr(int n, const double *arr)
 {
+  for (size_t i = 0; i < n; i++)
+  {
+    printf("%f, ", arr[i]);
+  }
+  printf("\n");
+}
+
+void printr(int n, int m, const double *arr)
+{
+  for (size_t i = 0; i < n; i++)
+  {
+    for (size_t j = 0; j < m; j++)
+    {
+      printf("%f, ", arr[i * n + j]);
+    }
+    printf("\n");
+  }
+  printf("\n");
+}
+
+void printr(int n, int m, int o, const double *arr)
+{
+  for (size_t i = 0; i < n; i++)
+  {
+    for (size_t j = 0; j < m; j++)
+    {
+      for (size_t k = 0; k < o; k++)
+      {
+        printf("%f, ", arr[i * n + j]);
+      }
+      printf("\n");      
+    }
+    printf("\n");
+  }
+  printf("\n");
+}
+
+
+extern "C" {
   void get_vec_(
       const double *xyz_iat,
       const double *xyz_jat,
@@ -325,34 +365,27 @@ extern "C"
     hello_kernel<<<1, 1>>>();
     cudaDeviceSynchronize(); // Wait for the kernel to finish.
   }
+}
 
-  void printr(int n, double *arr)
-  {
-    for (size_t i = 0; i < n; i++)
-    {
-      for (size_t j = 0; j < n; j++)
-      {
-        printf("%f, ", arr[i + j * n]);
-      }
-      printf("\n");
-    }
-    printf("\n");
-  }
-
-  void cuda_get_hamiltonian_kernel_(
-    int nao,
-    double *selfenergy,
-    double *overlap,
-    double *dpint,
-    double *qpint,
-    double *hamiltonian
+extern "C" void cuda_get_hamiltonian_kernel_(
+    int nao, 
+    int nelem,
+    const double *selfenergy, // (nel)
+    double *overlap, // (nao, nao)
+    double *dpint, // (nao, nao, 3)
+    double *qpint, // (nao, nao, 6)
+    double *hamiltonian // (nao, nao)
   )
   {
     printf("at %s:%i\n", __func__, __LINE__);
     printf("nao = %i\n", nao);
-    printf("hamiltonian = \n");
-    printr(nao, hamiltonian);
+    printf("nelem = %i\n", nelem);
+    printf("selfenergy = \n"); printr(nelem, selfenergy);
+    printf("overlap = \n"); printr(nao, nao, overlap);
+    printf("dpint = \n"); printr(nao, nao, 3, dpint);
+    printf("qpint = \n"); printr(nao, nao, 6, qpint);
+    printf("hamiltonian = \n"); printr(nao, nao, hamiltonian);
+    
     get_hamiltonian<<<1,1>>>();
     cudaDeviceSynchronize();
   }
-}
