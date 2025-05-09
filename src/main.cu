@@ -1,9 +1,9 @@
 #include <cstdio>
 #include <cuda.h>
-#include <cuda_runtime.h>
 #include <iostream>
 #include <stdio.h>
 #include <math.h>
+#include "utils.h"
 
 __device__ __constant__ double s3;
 __device__ __constant__ double s3_4;
@@ -276,6 +276,11 @@ __device__ void transform0(int lj, int li, const double *cart, double *sphr, int
   }
 }
 
+__global__ void get_hamiltonian()
+{
+  printf("Hello from inside the kernel\n");
+}
+
 extern "C"
 {
   void get_vec_(
@@ -319,5 +324,35 @@ extern "C"
   {
     hello_kernel<<<1, 1>>>();
     cudaDeviceSynchronize(); // Wait for the kernel to finish.
+  }
+
+  void printr(int n, double *arr)
+  {
+    for (size_t i = 0; i < n; i++)
+    {
+      for (size_t j = 0; j < n; j++)
+      {
+        printf("%f, ", arr[i + j * n]);
+      }
+      printf("\n");
+    }
+    printf("\n");
+  }
+
+  void cuda_get_hamiltonian_kernel_(
+    int nao,
+    double *selfenergy,
+    double *overlap,
+    double *dpint,
+    double *qpint,
+    double *hamiltonian
+  )
+  {
+    printf("at %s:%i\n", __func__, __LINE__);
+    printf("nao = %i\n", nao);
+    printf("hamiltonian = \n");
+    printr(nao, hamiltonian);
+    get_hamiltonian<<<1,1>>>();
+    cudaDeviceSynchronize();
   }
 }
