@@ -281,30 +281,32 @@ __global__ void get_hamiltonian()
   printf("Hello from inside the kernel\n");
 }
 
-
-void printr(int n, const double *arr)
+template <typename T>
+void printr(int n, const T *arr)
 {
   for (size_t i = 0; i < n; i++)
   {
-    printf("%f, ", arr[i]);
+    printf("%f, ", static_cast<double>(arr[i]));
   }
   printf("\n");
 }
 
-void printr(int n, int m, const double *arr)
+template <typename T>
+void printr(int n, int m, const T *arr)
 {
   for (size_t i = 0; i < n; i++)
   {
     for (size_t j = 0; j < m; j++)
     {
-      printf("%f, ", arr[i * n + j]);
+      printf("%f, ", static_cast<double>(arr[i * m + j]));
     }
     printf("\n");
   }
   printf("\n");
 }
 
-void printr(int n, int m, int o, const double *arr)
+template <typename T>
+void printr(int n, int m, int o, const T *arr)
 {
   for (size_t i = 0; i < n; i++)
   {
@@ -312,7 +314,7 @@ void printr(int n, int m, int o, const double *arr)
     {
       for (size_t k = 0; k < o; k++)
       {
-        printf("%f, ", arr[i * n + j]);
+        printf("%f, ", static_cast<double>(arr[i * m * o + j * o + k]));
       }
       printf("\n");      
     }
@@ -321,6 +323,27 @@ void printr(int n, int m, int o, const double *arr)
   printf("\n");
 }
 
+template <typename T>
+void printr(int n, int m, int o, int p, const T *arr)
+{
+  for (size_t i = 0; i < n; i++)
+  {
+    for (size_t j = 0; j < m; j++)
+    {
+      for (size_t k = 0; k < o; k++)
+      {
+        for (size_t l = 0; l < p; l++)
+        {
+          printf("%f, ", static_cast<double>(arr[i * n * m * o * p + j * o * p + k * p + l]));
+        }
+        printf("\n");
+      }
+      printf("\n");
+    }
+    printf("\n");
+  }
+  printf("\n");
+}
 
 extern "C" {
   void get_vec_(
@@ -367,24 +390,131 @@ extern "C" {
   }
 }
 
+
 extern "C" void cuda_get_hamiltonian_kernel_(
     int nao, 
     int nelem,
-    const double *selfenergy, // (nel)
-    double *overlap, // (nao, nao)
-    double *dpint, // (nao, nao, 3)
-    double *qpint, // (nao, nao, 6)
-    double *hamiltonian // (nao, nao)
+
+    /* basis_type */
+    /* reference */
+    /*
+
+         integer(c_int), value :: bas_maxl
+         integer(c_int), value :: bas_nsh
+         integer(c_int), value :: bas_nao
+         real(c_double), value :: bas_intcut
+         real(c_double), value :: bas_min_alpha
+    integer(c_int), value :: bas_nsh_id(*)
+    integer(c_int), value :: bas_nsh_id_dim1
+    integer(c_int), value :: bas_nsh_at(*)
+    integer(c_int), value :: bas_nsh_at_dim1
+    integer(c_int), value :: bas_nao_sh(*)
+    integer(c_int), value :: bas_nao_sh_dim1
+    integer(c_int), value :: bas_iao_sh(*)
+    integer(c_int), value :: bas_iao_sh_dim1
+    integer(c_int), value :: bas_ish_at(*)
+    integer(c_int), value :: bas_ish_at_dim1
+    integer(c_int), value :: bas_ao2at(*)
+    integer(c_int), value :: bas_ao2at_dim1
+    integer(c_int), value :: bas_ao2sh(*)
+    integer(c_int), value :: bas_ao2sh_dim1
+    integer(c_int), value :: bas_sh2at(*)
+    integer(c_int), value :: bas_sh2at_dim1*/
+    
+    /* basis_type */
+    
+    const int bas_maxl,
+    const int bas_nsh,
+    const int bas_nao,
+    const double bas_intcut,
+    const double bas_min_alpha,
+    const int *bas_nsh_id,
+    int bas_nsh_id_dim1,
+    const int *bas_nsh_at,
+    int bas_nsh_at_dim1,
+    const int *bas_nao_sh,
+    int bas_nao_sh_dim1,
+    const int *bas_iao_sh,
+    int bas_iao_sh_dim1,
+    const int *bas_ish_at,
+    int bas_ish_at_dim1,
+    const int *bas_ao2at,
+    int bas_ao2at_dim1,
+    const int *bas_ao2sh,
+    int bas_ao2sh_dim1,
+    const int *bas_sh2at,
+    int bas_sh2at_dim1,
+
+    
+    /* tb_hamiltonian */
+    const double *h0_selfenergy, 
+    int h0_selfenergy_dim1, int h0_selfenergy_dim2,
+    const double *h0_kcn,
+    int h0_kcn_dim1, int h0_kcn_dim2,
+    const double *h0_kq1,
+    int h0_kq1_dim1, int h0_kq1_dim2,
+    const double *h0_kq2,
+    int h0_kq2_dim1, int h0_kq2_dim2,
+    const double *h0_hscale,
+    int h0_hscale_dim1, int h0_hscale_dim2, int h0_hscale_dim3, int h0_hscale_dim4,
+    const double *h0_shpoly,
+    int h0_shpoly_dim1, int h0_shpoly_dim2,
+    const double *h0_rad,
+    int h0_rad_dim1,
+    const double *h0_refocc,
+    int h0_refocc_dim1, int h0_refocc_dim2,
+
+    // Diagonal elememts of the Hamiltonian  (nel)
+    const double *selfenergy,
+    // Overlap integral matrix (nao, nao)
+    double *overlap,
+    // Dipole moment integral matrix (nao, nao, 3)
+    double *dpint, 
+    // Quadrupole moment integral matrix (nao, nao, 6)
+    double *qpint, 
+    // Hamiltonian matrix (nao, nao)
+    double *hamiltonian
   )
   {
     printf("at %s:%i\n", __func__, __LINE__);
     printf("nao = %i\n", nao);
     printf("nelem = %i\n", nelem);
+
+    printf("bas_nsh_id = \n");
+    printr(bas_nsh_id_dim1, bas_nsh_id);
+    printf("bas_nsh_at = \n");
+    printr(bas_nsh_at_dim1, bas_nsh_at);
+    printf("bas_nao_sh = \n");
+    printr(bas_nao_sh_dim1, bas_nao_sh);
+    printf("bas_iao_sh = \n");
+    printr(bas_iao_sh_dim1, bas_iao_sh);
+    printf("bas_ish_at = \n");
+    printr(bas_ish_at_dim1, bas_ish_at);
+    printf("bas_ao2at = \n");
+    printr(bas_ao2at_dim1, bas_ao2at);
+    printf("bas_ao2sh = \n");
+    printr(bas_ao2sh_dim1, bas_ao2sh);
+    printf("bas_sh2at = \n");
+    printr(bas_sh2at_dim1, bas_sh2at);
+    
+
+    printf("h0_selfenergy = \n");
+    printr(h0_selfenergy_dim1, h0_selfenergy_dim2, h0_selfenergy);
+    printf("h0_kcn = \n");
+    printr(h0_kcn_dim1, h0_kcn_dim2, h0_kcn);
+    printf("h0_kq1 = \n");
+    printr(h0_kq1_dim1, h0_kq1_dim2, h0_kq1);
+    printf("h0_kq2 = \n");
+    printr(h0_kq2_dim1, h0_kq2_dim2, h0_kq2);
+    printf("h0_hscale = \n");
+    printr(h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4, h0_hscale);
+
     printf("selfenergy = \n"); printr(nelem, selfenergy);
     printf("overlap = \n"); printr(nao, nao, overlap);
     printf("dpint = \n"); printr(nao, nao, 3, dpint);
     printf("qpint = \n"); printr(nao, nao, 6, qpint);
     printf("hamiltonian = \n"); printr(nao, nao, hamiltonian);
+
     
     get_hamiltonian<<<1,1>>>();
     cudaDeviceSynchronize();
