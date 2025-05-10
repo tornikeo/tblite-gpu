@@ -397,8 +397,8 @@ extern "C" {
 extern "C" void cuda_get_hamiltonian_kernel_(
     int nao, 
     int nelem,
-    /* structure_type */
 
+    /* structure_type */
     const int mol_nat,
     const int mol_nid,
     const int mol_nbd,
@@ -411,17 +411,14 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     const int *mol_periodic, int mol_periodic_dim1,
     const int *mol_bond, int mol_bond_dim1, int mol_bond_dim2,
 
+    /* trans for lattice */
     const double *trans, const int trans_dim1, const int trans_dim2,
 
     /* adjacency_list */
-    const int *alist_inl,
-    int alist_inl_dim1,
-    const int *alist_nnl,
-    int alist_nnl_dim1,
-    const int *alist_nlat,
-    int alist_nlat_dim1,
-    const int *alist_nltr,
-    int alist_nltr_dim1,
+    const int *alist_inl, int alist_inl_dim1,
+    const int *alist_nnl, int alist_nnl_dim1,
+    const int *alist_nlat, int alist_nlat_dim1,
+    const int *alist_nltr, int alist_nltr_dim1,
 
     /* basis_type */
     const int bas_maxl,
@@ -429,42 +426,25 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     const int bas_nao,
     const double bas_intcut,
     const double bas_min_alpha,
-    const int *bas_nsh_id,
-    int bas_nsh_id_dim1,
-    const int *bas_nsh_at,
-    int bas_nsh_at_dim1,
-    const int *bas_nao_sh,
-    int bas_nao_sh_dim1,
-    const int *bas_iao_sh,
-    int bas_iao_sh_dim1,
-    const int *bas_ish_at,
-    int bas_ish_at_dim1,
-    const int *bas_ao2at,
-    int bas_ao2at_dim1,
-    const int *bas_ao2sh,
-    int bas_ao2sh_dim1,
-    const int *bas_sh2at,
-    int bas_sh2at_dim1,
-    const cgto_type *cgto,
-    int cgto_dim1, int cgto_dim2,
+    const int *bas_nsh_id, int bas_nsh_id_dim1,
+    const int *bas_nsh_at, int bas_nsh_at_dim1,
+    const int *bas_nao_sh, int bas_nao_sh_dim1,
+    const int *bas_iao_sh, int bas_iao_sh_dim1,
+    const int *bas_ish_at, int bas_ish_at_dim1,
+    const int *bas_ao2at, int bas_ao2at_dim1,
+    const int *bas_ao2sh, int bas_ao2sh_dim1,
+    const int *bas_sh2at, int bas_sh2at_dim1,
+    const cgto_type *cgto, int cgto_dim1, int cgto_dim2,
     
     /* tb_hamiltonian */
-    const double *h0_selfenergy, 
-    int h0_selfenergy_dim1, int h0_selfenergy_dim2,
-    const double *h0_kcn,
-    int h0_kcn_dim1, int h0_kcn_dim2,
-    const double *h0_kq1,
-    int h0_kq1_dim1, int h0_kq1_dim2,
-    const double *h0_kq2,
-    int h0_kq2_dim1, int h0_kq2_dim2,
-    const double *h0_hscale,
-    int h0_hscale_dim1, int h0_hscale_dim2, int h0_hscale_dim3, int h0_hscale_dim4,
-    const double *h0_shpoly,
-    int h0_shpoly_dim1, int h0_shpoly_dim2,
-    const double *h0_rad,
-    int h0_rad_dim1,
-    const double *h0_refocc,
-    int h0_refocc_dim1, int h0_refocc_dim2,
+    const double *h0_selfenergy, int h0_selfenergy_dim1, int h0_selfenergy_dim2,
+    const double *h0_kcn, int h0_kcn_dim1, int h0_kcn_dim2,
+    const double *h0_kq1, int h0_kq1_dim1, int h0_kq1_dim2,
+    const double *h0_kq2, int h0_kq2_dim1, int h0_kq2_dim2,
+    const double *h0_hscale, int h0_hscale_dim1, int h0_hscale_dim2, int h0_hscale_dim3, int h0_hscale_dim4,
+    const double *h0_shpoly, int h0_shpoly_dim1, int h0_shpoly_dim2,
+    const double *h0_rad, int h0_rad_dim1,
+    const double *h0_refocc, int h0_refocc_dim1, int h0_refocc_dim2,
 
     // Diagonal elememts of the Hamiltonian  (nel)
     const double *selfenergy,
@@ -486,13 +466,25 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       alist_nlat, alist_nlat_dim1,
       alist_nltr, alist_nltr_dim1
     };
+    const structure_type mol
+    {
+      mol_nat, mol_nid, mol_nbd,
+      mol_id, mol_id_dim1,
+      mol_num, mol_num_dim1,
+      mol_xyz, mol_xyz_dim1, mol_xyz_dim2,
+      mol_uhf, 
+      mol_charge,
+      mol_lattice, mol_lattice_dim1, mol_lattice_dim2,
+      mol_periodic, mol_periodic_dim1,
+      mol_bond, mol_bond_dim1, mol_bond_dim2
+    };
     printf("================= CUDA =================\n");
     printf("at %s:%i\n", __func__, __LINE__);
-    // printf("nao = %i\n", nao);
-    // printf("nelem = %i\n", nelem);
-
+    printf("nao = %i\n", nao);
+    printf("nelem = %i\n", nelem);
     printstruct(alist);
 
+    printstruct(mol);
     // printf("bas_nsh_id = \n");
     // printr(bas_nsh_id_dim1, bas_nsh_id);
     // printf("bas_nsh_at = \n");

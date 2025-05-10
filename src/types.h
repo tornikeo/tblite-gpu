@@ -5,22 +5,85 @@
 
 #define MAXG 12 
 #define SYMBOL_LENGTH 10 // Replace with the actual value of symbol_length in Fortran
-
+/*    const int mol_nat,
+    const int mol_nid,
+    const int mol_nbd,
+    const int *mol_id, int mol_id_dim1,
+    const int *mol_num, int mol_num_dim1,
+    const double *mol_xyz, int mol_xyz_dim1, int mol_xyz_dim2,
+    const int mol_uhf, 
+    const double mol_charge,
+    const double *mol_lattice, int mol_lattice_dim1, int mol_lattice_dim2,
+    const int *mol_periodic, int mol_periodic_dim1,
+    const int *mol_bond, int mol_bond_dim1, int mol_bond_dim2,*/
 typedef struct {
-    int nat;                // Number of atoms
-    int nid;                // Number of unique species
-    int nbd;                // Number of bonds
-    int *id;                // Species identifier (dynamic array)
-    int *num;               // Atomic number for each species (dynamic array)
-    char (*sym)[SYMBOL_LENGTH]; // Element symbol for each species (dynamic array of strings)
-    double **xyz;           // Cartesian coordinates, in Bohr (dynamic 2D array)
-    int uhf;                // Number of unpaired electrons
-    double charge;          // Total charge
-    double **lattice;       // Lattice parameters (dynamic 2D array)
-    bool *periodic;         // Periodic directions (dynamic array)
-    int **bond;             // Bond indices (dynamic 2D array)
-    char *comment;          // Comment, name, or identifier for this structure (dynamic string)
+    const int nat;
+    const int nid;
+    const int nbd;
+    const int *id;  const int id_dim1;
+    const int *num; const int num_dim1;
+    const double *xyz; const int xyz_dim1; const int xyz_dim2;
+    const int uhf;
+    const double charge;
+    const double *lattice; const int lattice_dim1; const int lattice_dim2;
+    const int *periodic; const int periodic_dim1;
+    const int *bond; const int bond_dim1; const int bond_dim2;
 } structure_type;
+
+void printstruct(const structure_type str)
+{
+  printf("structure_type:\n");
+  printf("  nat: %d\n", str.nat);
+  printf("  nid: %d\n", str.nid);
+  printf("  nbd: %d\n", str.nbd);
+  printf("  id: ");
+  for (int i = 0; i < str.id_dim1; ++i)
+  {
+    printf("%d, ", str.id[i]);
+  }
+  printf("\n");
+  printf("  num: ");
+  for (int i = 0; i < str.num_dim1; ++i)
+  {
+    printf("%d, ", str.num[i]);
+  }
+  printf("\n");
+  printf("  xyz: ");
+  for (int i = 0; i < str.xyz_dim1; ++i)
+  {
+    for (int j = 0; j < str.xyz_dim2; ++j)
+    {
+      printf("%f, ", str.xyz[i * str.xyz_dim2 + j]);
+    }
+    printf("\n");
+  }
+  printf("  uhf: %d\n", str.uhf);
+  printf("  charge: %f\n", str.charge);
+  printf("  lattice: ");
+  for (int i = 0; i < str.lattice_dim1; ++i)
+  {
+    for (int j = 0; j < str.lattice_dim2; ++j)
+    {
+      printf("%f, ", str.lattice[i * str.lattice_dim2 + j]);
+    }
+    printf("\n");
+  }
+  printf("  periodic: ");
+  for (int i = 0; i < str.periodic_dim1; ++i)
+  {
+    printf("%d, ", str.periodic[i]);
+  }
+  printf("\n");
+  printf("  bond: ");
+  for (int i = 0; i < str.bond_dim1; ++i)
+  {
+    for (int j = 0; j < str.bond_dim2; ++j)
+    {
+      printf("%d, ", str.bond[i * str.bond_dim2 + j]);
+    }
+    printf("\n");
+  }
+}
 
 typedef struct {
   const int *inl;  // Offset index in the neighbour map (dynamic array)
