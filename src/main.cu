@@ -397,7 +397,22 @@ extern "C" {
 extern "C" void cuda_get_hamiltonian_kernel_(
     int nao, 
     int nelem,
-    
+    /* structure_type */
+
+    const int mol_nat,
+    const int mol_nid,
+    const int mol_nbd,
+    const int *mol_id, int mol_id_dim1,
+    const int *mol_num, int mol_num_dim1,
+    const double *mol_xyz, int mol_xyz_dim1, int mol_xyz_dim2,
+    const int mol_uhf, 
+    const double mol_charge,
+    const double *mol_lattice, int mol_lattice_dim1, int mol_lattice_dim2,
+    const int *mol_periodic, int mol_periodic_dim1,
+    const int *mol_bond, int mol_bond_dim1, int mol_bond_dim2,
+
+    const double *trans, const int trans_dim1, const int trans_dim2,
+
     /* adjacency_list */
     const int *alist_inl,
     int alist_inl_dim1,
