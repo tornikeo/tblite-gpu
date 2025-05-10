@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <math.h>
 #include "utils.h"
+#include "types.h"
 
 __device__ __constant__ double s3;
 __device__ __constant__ double s3_4;
@@ -345,6 +346,32 @@ void printr(int n, int m, int o, int p, const T *arr)
   printf("\n");
 }
 
+/*typedef struct {
+    int ang;               // Angular momentum of this basis function
+    int nprim;             // Contraction length of this basis function
+    double alpha[MAXG];    // Exponent of the primitive Gaussian functions
+    double coeff[MAXG];    // Contraction coefficients of the primitive Gaussian functions
+} cgto_type;*/
+
+void printstruct(const cgto_type cgto)
+{
+  printf("cgto_type:\n");
+  printf("  ang: %d\n", cgto.ang);
+  printf("  nprim: %d\n", cgto.nprim);
+  printf("  alpha: ");
+  for (int i = 0; i < cgto.nprim; ++i)
+  {
+    printf("%f, ", cgto.alpha[i]);
+  }
+  printf("\n");
+  printf("  coeff: ");
+  for (int i = 0; i < cgto.nprim; ++i)
+  {
+    printf("%f, ", cgto.coeff[i]);
+  }
+  printf("\n");
+}
+
 extern "C" {
   void get_vec_(
       const double *xyz_iat,
@@ -396,32 +423,6 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     int nelem,
 
     /* basis_type */
-    /* reference */
-    /*
-
-         integer(c_int), value :: bas_maxl
-         integer(c_int), value :: bas_nsh
-         integer(c_int), value :: bas_nao
-         real(c_double), value :: bas_intcut
-         real(c_double), value :: bas_min_alpha
-    integer(c_int), value :: bas_nsh_id(*)
-    integer(c_int), value :: bas_nsh_id_dim1
-    integer(c_int), value :: bas_nsh_at(*)
-    integer(c_int), value :: bas_nsh_at_dim1
-    integer(c_int), value :: bas_nao_sh(*)
-    integer(c_int), value :: bas_nao_sh_dim1
-    integer(c_int), value :: bas_iao_sh(*)
-    integer(c_int), value :: bas_iao_sh_dim1
-    integer(c_int), value :: bas_ish_at(*)
-    integer(c_int), value :: bas_ish_at_dim1
-    integer(c_int), value :: bas_ao2at(*)
-    integer(c_int), value :: bas_ao2at_dim1
-    integer(c_int), value :: bas_ao2sh(*)
-    integer(c_int), value :: bas_ao2sh_dim1
-    integer(c_int), value :: bas_sh2at(*)
-    integer(c_int), value :: bas_sh2at_dim1*/
-    
-    /* basis_type */
     
     const int bas_maxl,
     const int bas_nsh,
@@ -444,7 +445,8 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     int bas_ao2sh_dim1,
     const int *bas_sh2at,
     int bas_sh2at_dim1,
-
+    const cgto_type *cgto,
+    int cgto_dim1, int cgto_dim2,
     
     /* tb_hamiltonian */
     const double *h0_selfenergy, 
@@ -477,45 +479,53 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   )
   {
     printf("at %s:%i\n", __func__, __LINE__);
-    printf("nao = %i\n", nao);
-    printf("nelem = %i\n", nelem);
+    // printf("nao = %i\n", nao);
+    // printf("nelem = %i\n", nelem);
 
-    printf("bas_nsh_id = \n");
-    printr(bas_nsh_id_dim1, bas_nsh_id);
-    printf("bas_nsh_at = \n");
-    printr(bas_nsh_at_dim1, bas_nsh_at);
-    printf("bas_nao_sh = \n");
-    printr(bas_nao_sh_dim1, bas_nao_sh);
-    printf("bas_iao_sh = \n");
-    printr(bas_iao_sh_dim1, bas_iao_sh);
-    printf("bas_ish_at = \n");
-    printr(bas_ish_at_dim1, bas_ish_at);
-    printf("bas_ao2at = \n");
-    printr(bas_ao2at_dim1, bas_ao2at);
-    printf("bas_ao2sh = \n");
-    printr(bas_ao2sh_dim1, bas_ao2sh);
-    printf("bas_sh2at = \n");
-    printr(bas_sh2at_dim1, bas_sh2at);
+    // printf("bas_nsh_id = \n");
+    // printr(bas_nsh_id_dim1, bas_nsh_id);
+    // printf("bas_nsh_at = \n");
+    // printr(bas_nsh_at_dim1, bas_nsh_at);
+    // printf("bas_nao_sh = \n");
+    // printr(bas_nao_sh_dim1, bas_nao_sh);
+    // printf("bas_iao_sh = \n");
+    // printr(bas_iao_sh_dim1, bas_iao_sh);
+    // printf("bas_ish_at = \n");
+    // printr(bas_ish_at_dim1, bas_ish_at);
+    // printf("bas_ao2at = \n");
+    // printr(bas_ao2at_dim1, bas_ao2at);
+    // printf("bas_ao2sh = \n");
+    // printr(bas_ao2sh_dim1, bas_ao2sh);
+    // printf("bas_sh2at = \n");
+    // printr(bas_sh2at_dim1, bas_sh2at);
+
+    for (int i = 0; i < cgto_dim1; ++i)
+    {
+      for (int j = 0; j < cgto_dim2; ++j)
+      {
+        printf("cgto[%d][%d] = ", i, j);
+        printstruct(cgto[i * cgto_dim2 + j]);
+      }
+    }
+
+    // printf("h0_selfenergy = \n");
+    // printr(h0_selfenergy_dim1, h0_selfenergy_dim2, h0_selfenergy);
+    // printf("h0_kcn = \n");
+    // printr(h0_kcn_dim1, h0_kcn_dim2, h0_kcn);
+    // printf("h0_kq1 = \n");
+    // printr(h0_kq1_dim1, h0_kq1_dim2, h0_kq1);
+    // printf("h0_kq2 = \n");
+    // printr(h0_kq2_dim1, h0_kq2_dim2, h0_kq2);
+    // printf("h0_hscale = \n");
+    // printr(h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4, h0_hscale);
+
+    // printf("selfenergy = \n"); printr(nelem, selfenergy);
+    // printf("overlap = \n"); printr(nao, nao, overlap);
+    // printf("dpint = \n"); printr(nao, nao, 3, dpint);
+    // printf("qpint = \n"); printr(nao, nao, 6, qpint);
+    // printf("hamiltonian = \n"); printr(nao, nao, hamiltonian);
+
     
-
-    printf("h0_selfenergy = \n");
-    printr(h0_selfenergy_dim1, h0_selfenergy_dim2, h0_selfenergy);
-    printf("h0_kcn = \n");
-    printr(h0_kcn_dim1, h0_kcn_dim2, h0_kcn);
-    printf("h0_kq1 = \n");
-    printr(h0_kq1_dim1, h0_kq1_dim2, h0_kq1);
-    printf("h0_kq2 = \n");
-    printr(h0_kq2_dim1, h0_kq2_dim2, h0_kq2);
-    printf("h0_hscale = \n");
-    printr(h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4, h0_hscale);
-
-    printf("selfenergy = \n"); printr(nelem, selfenergy);
-    printf("overlap = \n"); printr(nao, nao, overlap);
-    printf("dpint = \n"); printr(nao, nao, 3, dpint);
-    printf("qpint = \n"); printr(nao, nao, 6, qpint);
-    printf("hamiltonian = \n"); printr(nao, nao, hamiltonian);
-
-    
-    get_hamiltonian<<<1,1>>>();
-    cudaDeviceSynchronize();
+    // get_hamiltonian<<<1,1>>>();
+    // cudaDeviceSynchronize();
   }

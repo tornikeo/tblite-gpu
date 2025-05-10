@@ -1,11 +1,9 @@
+#include <stddef.h>
 #include <stdbool.h>
 #include <stdlib.h>
-// Equivalent C struct for cgto_type
 #include <float.h> // For huge value if needed
 
-#define MAXG 12 // Replace with the actual value of maxg in Fortran
-
-
+#define MAXG 12 
 #define SYMBOL_LENGTH 10 // Replace with the actual value of symbol_length in Fortran
 
 typedef struct {
@@ -53,7 +51,7 @@ typedef struct {
     int *ao2at;            // Mapping from spherical atomic orbitals to the respective atom (dynamic array)
     int *ao2sh;            // Mapping from spherical atomic orbitals to the respective shell (dynamic array)
     int *sh2at;            // Mapping from shells to the respective atom (dynamic array)
-    cgto_type **cgto;      // Contracted Gaussian basis functions (dynamic 2D array)
+    cgto_type *cgto;      // Contracted Gaussian basis functions (dynamic 2D array)
 } basis_type;
 
 // Hamiltonian interaction data structure
