@@ -154,53 +154,221 @@ void printstruct(const cgto_type cgto)
 
 // Equivalent C struct for basis_type
 typedef struct {
-    int maxl;              // Maximum angular momentum of all basis functions
-    int nsh;               // Number of shells in this basis set
-    int nao;               // Number of spherical atomic orbitals in this basis set
-    double intcut;         // Integral cutoff
-    double min_alpha;      // Smallest primitive exponent in the basis set
-    int *nsh_id;           // Number of shells for each species (dynamic array)
-    int *nsh_at;           // Number of shells for each atom (dynamic array)
-    int *nao_sh;           // Number of spherical atomic orbitals for each shell (dynamic array)
-    int *iao_sh;           // Index offset for each shell in the atomic orbital space (dynamic array)
-    int *ish_at;           // Index offset for each atom in the shell space (dynamic array)
-    int *ao2at;            // Mapping from spherical atomic orbitals to the respective atom (dynamic array)
-    int *ao2sh;            // Mapping from spherical atomic orbitals to the respective shell (dynamic array)
-    int *sh2at;            // Mapping from shells to the respective atom (dynamic array)
-    cgto_type *cgto;      // Contracted Gaussian basis functions (dynamic 2D array)
+  /*        !> basis_type
+        integer(c_int), value :: bas_maxl
+        integer(c_int), value :: bas_nsh
+        integer(c_int), value :: bas_nao
+        real(c_double), value :: bas_intcut
+        real(c_double), value :: bas_min_alpha
+        integer(c_int), intent(in) :: bas_nsh_id(*)
+        integer(c_int), value :: bas_nsh_id_dim1
+        integer(c_int), intent(in) :: bas_nsh_at(*)
+        integer(c_int), value :: bas_nsh_at_dim1
+        integer(c_int), intent(in) :: bas_nao_sh(*)
+        integer(c_int), value :: bas_nao_sh_dim1
+        integer(c_int), intent(in) :: bas_iao_sh(*)
+        integer(c_int), value :: bas_iao_sh_dim1
+        integer(c_int), intent(in) :: bas_ish_at(*)
+        integer(c_int), value :: bas_ish_at_dim1
+        integer(c_int), intent(in) :: bas_ao2at(*)
+        integer(c_int), value :: bas_ao2at_dim1
+        integer(c_int), intent(in) :: bas_ao2sh(*)
+        integer(c_int), value :: bas_ao2sh_dim1
+        integer(c_int), intent(in) :: bas_sh2at(*)
+        integer(c_int), value :: bas_sh2at_dim1
+        type(cgto_type), intent(in) :: cgto(*)
+        integer(c_int), value :: cgto_dim1, cgto_dim2*/
+  const int bas_maxl;
+  const int bas_nsh;
+  const int bas_nao;
+  const double bas_intcut;
+  const double bas_min_alpha;
+  const int *nsh_id; const int nsh_id_dim1;
+  const int *nsh_at; const int nsh_at_dim1;
+  const int *nao_sh; const int nao_sh_dim1;
+  const int *iao_sh; const int iao_sh_dim1;
+  const int *ish_at; const int ish_at_dim1;
+  const int *ao2at; const int ao2at_dim1;
+  const int *ao2sh; const int ao2sh_dim1;
+  const int *sh2at; const int sh2at_dim1;
+  const cgto_type *cgto; const int cgto_dim1; const int cgto_dim2;
 } basis_type;
+
+void printstruct(const basis_type bas)
+{
+  printf("basis_type:\n");
+  printf("  bas_maxl: %d\n", bas.bas_maxl);
+  printf("  bas_nsh: %d\n", bas.bas_nsh);
+  printf("  bas_nao: %d\n", bas.bas_nao);
+  printf("  bas_intcut: %f\n", bas.bas_intcut);
+  printf("  bas_min_alpha: %f\n", bas.bas_min_alpha);
+  printf("  nsh_id: ");
+  for (int i = 0; i < bas.nsh_id_dim1; ++i)
+  {
+    printf("%d, ", bas.nsh_id[i]);
+  }
+  printf("\n");
+  printf("  nsh_at: ");
+  for (int i = 0; i < bas.nsh_at_dim1; ++i)
+  {
+    printf("%d, ", bas.nsh_at[i]);
+  }
+  printf("\n");
+  printf("  nao_sh: ");
+  for (int i = 0; i < bas.nao_sh_dim1; ++i)
+  {
+    printf("%d, ", bas.nao_sh[i]);
+  }
+  printf("\n");
+  printf("  iao_sh: ");
+  for (int i = 0; i < bas.iao_sh_dim1; ++i)
+  {
+    printf("%d, ", bas.iao_sh[i]);
+  }
+  printf("\n");
+  printf("  ish_at: ");
+  for (int i = 0; i < bas.ish_at_dim1; ++i)
+  {
+    printf("%d, ", bas.ish_at[i]);
+  }
+  printf("\n");
+  printf("  ao2at: ");
+  for (int i = 0; i < bas.ao2at_dim1; ++i)
+  {
+    printf("%d, ", bas.ao2at[i]);
+  }
+  printf("\n");
+  printf("  ao2sh: ");
+  for (int i = 0; i < bas.ao2sh_dim1; ++i)
+  {
+    printf("%d, ", bas.ao2sh[i]);
+  }
+  printf("\n");
+  printf("  sh2at: ");
+  for (int i = 0; i < bas.sh2at_dim1; ++i)
+  {
+    printf("%d, ", bas.sh2at[i]);
+  }
+  printf("\n");
+  printf("  cgto: ");
+  // DEBUG
+  printf("cgto dims are %d, %d\n", bas.cgto_dim1 + 1, bas.cgto_dim2 + 1);
+  for(int i = 0; i < bas.cgto_dim1; ++i)
+  {
+    for (int j = 0; j < bas.cgto_dim2; ++j)
+    {
+      printf("cgto[%d][%d] = \n", i, j);
+      printstruct(bas.cgto[i * bas.cgto_dim2 + j]);
+    }
+  }
+}
 
 // Hamiltonian interaction data structure
 typedef struct {
-    // Atomic level information
-    // Contiguous 2D array (size: mshell * mol_nid)
-    double *selfenergy;
-
-    // Coordination number dependence of the atomic levels
-    // Contiguous 2D array (size: mshell * mol_nid)
-    double *kcn;
-
-    // Charge dependence of the atomic levels
-    // Contiguous 2D array (size: mshell * mol_nid)
-    double *kq1;
-
-    // Charge dependence of the atomic levels
-    // Contiguous 2D array (size: mshell * mol_nid)
-    double *kq2;
-
-    // Enhancement factor to scale the Hamiltonian elements
-    // Contiguous 4D array (size: mshell * mshell * mol_nid * mol_nid)
-    double *hscale;
-
-    // Polynomial coefficients for distance-dependent enhancement factor
-    // Contiguous 2D array (size: mshell * mol_nid)
-    double *shpoly;
-
-    // Atomic radius for polynomial enhancement
-    // Contiguous 1D array (size: mol_nid)
-    double *rad;
-
-    // Reference occupation numbers
-    // Contiguous 2D array (size: mshell * mol_nid)
-    double *refocc;
+  /*        !> tb_hamiltonian
+        real(c_double), intent(in) :: h0_selfenergy(*)
+        integer(c_int), value :: h0_selfenergy_dim1, h0_selfenergy_dim2
+        real(c_double), intent(in) :: h0_kcn(*)
+        integer(c_int), value :: h0_kcn_dim1, h0_kcn_dim2
+        real(c_double), intent(in) :: h0_kq1(*)
+        integer(c_int), value :: h0_kq1_dim1, h0_kq1_dim2
+        real(c_double), intent(in) :: h0_kq2(*)
+        integer(c_int), value :: h0_kq2_dim1, h0_kq2_dim2
+        real(c_double), intent(in) :: h0_hscale(*)
+        integer(c_int), value :: h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4
+        real(c_double), intent(in) :: h0_shpoly(*)
+        integer(c_int), value :: h0_shpoly_dim1, h0_shpoly_dim2
+        real(c_double), intent(in) :: h0_rad(*)
+        integer(c_int), value :: h0_rad_dim1
+        real(c_double), intent(in) :: h0_refocc(*)
+        integer(c_int), value :: h0_refocc_dim1, h0_refocc_dim2*/
+  const double *selfenergy; const int selfenergy_dim1; const int selfenergy_dim2;
+  const double *kcn; const int kcn_dim1; const int kcn_dim2;
+  const double *kq1; const int kq1_dim1; const int kq1_dim2;
+  const double *kq2; const int kq2_dim1; const int kq2_dim2;
+  const double *hscale; const int hscale_dim1; const int hscale_dim2; const int hscale_dim3; const int hscale_dim4;
+  const double *shpoly; const int shpoly_dim1; const int shpoly_dim2;
+  const double *rad; const int rad_dim1;
+  const double *refocc; const int refocc_dim1; const int refocc_dim2;
 } tb_hamiltonian;
+
+void printstruct(const tb_hamiltonian h)
+{
+  printf("tb_hamiltonian:\n");
+  printf("  selfenergy: ");
+  for (int i = 0; i < h.selfenergy_dim1; ++i)
+  {
+    for (int j = 0; j < h.selfenergy_dim2; ++j)
+    {
+      printf("%f, ", h.selfenergy[i * h.selfenergy_dim2 + j]);
+    }
+    printf("\n");
+  }
+  printf("  kcn: ");
+  for (int i = 0; i < h.kcn_dim1; ++i)
+  {
+    for (int j = 0; j < h.kcn_dim2; ++j)
+    {
+      printf("%f, ", h.kcn[i * h.kcn_dim2 + j]);
+    }
+    printf("\n");
+  }
+  printf("  kq1: ");
+  for (int i = 0; i < h.kq1_dim1; ++i)
+  {
+    for (int j = 0; j < h.kq1_dim2; ++j)
+    {
+      printf("%f, ", h.kq1[i * h.kq1_dim2 + j]);
+    }
+    printf("\n");
+  }
+  printf("  kq2: ");
+  for (int i = 0; i < h.kq2_dim1; ++i)
+  {
+    for (int j = 0; j < h.kq2_dim2; ++j)
+    {
+      printf("%f, ", h.kq2[i * h.kq2_dim2 + j]);
+    }
+    printf("\n");
+  }
+  printf("  hscale: ");
+  for (int i = 0; i < h.hscale_dim1; ++i)
+  {
+    for (int j = 0; j < h.hscale_dim2; ++j)
+    {
+      for (int k = 0; k < h.hscale_dim3; ++k)
+      {
+        for (int l = 0; l < h.hscale_dim4; ++l)
+        {
+          printf("%f, ", h.hscale[i * h.hscale_dim2 * h.hscale_dim3 * h.hscale_dim4 + j * h.hscale_dim3 * h.hscale_dim4 + k * h.hscale_dim4 + l]);
+        }
+      }
+      printf("\n");
+    }
+    printf("\n");
+  }
+  printf("  shpoly: ");
+  for (int i = 0; i < h.shpoly_dim1; ++i)
+  {
+    for (int j = 0; j < h.shpoly_dim2; ++j)
+    {
+      printf("%f, ", h.shpoly[i * h.shpoly_dim2 + j]);
+    }
+    printf("\n");
+  }
+  printf("  rad: ");
+  for (int i = 0; i < h.rad_dim1; ++i)
+  {
+    printf("%f, ", h.rad[i]);
+  }
+  printf("\n");
+  printf("  refocc: ");
+  for (int i = 0; i < h.refocc_dim1; ++i)
+  {
+    for (int j = 0; j < h.refocc_dim2; ++j)
+    {
+      printf("%f, ", h.refocc[i * h.refocc_dim2 + j]);
+    }
+    printf("\n");
+  }
+}

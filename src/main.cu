@@ -317,7 +317,7 @@ void printr(int n, int m, int o, const T *arr)
       {
         printf("%f, ", static_cast<double>(arr[i * m * o + j * o + k]));
       }
-      printf("\n");      
+      printf("\n");
     }
     printf("\n");
   }
@@ -346,9 +346,8 @@ void printr(int n, int m, int o, int p, const T *arr)
   printf("\n");
 }
 
-
-
-extern "C" {
+extern "C"
+{
   void get_vec_(
       const double *xyz_iat,
       const double *xyz_jat,
@@ -393,9 +392,8 @@ extern "C" {
   }
 }
 
-
 extern "C" void cuda_get_hamiltonian_kernel_(
-    int nao, 
+    int nao,
     int nelem,
 
     /* structure_type */
@@ -405,7 +403,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     const int *mol_id, int mol_id_dim1,
     const int *mol_num, int mol_num_dim1,
     const double *mol_xyz, int mol_xyz_dim1, int mol_xyz_dim2,
-    const int mol_uhf, 
+    const int mol_uhf,
     const double mol_charge,
     const double *mol_lattice, int mol_lattice_dim1, int mol_lattice_dim2,
     const int *mol_periodic, int mol_periodic_dim1,
@@ -435,7 +433,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     const int *bas_ao2sh, int bas_ao2sh_dim1,
     const int *bas_sh2at, int bas_sh2at_dim1,
     const cgto_type *cgto, int cgto_dim1, int cgto_dim2,
-    
+
     /* tb_hamiltonian */
     const double *h0_selfenergy, int h0_selfenergy_dim1, int h0_selfenergy_dim2,
     const double *h0_kcn, int h0_kcn_dim1, int h0_kcn_dim2,
@@ -451,84 +449,104 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     // Overlap integral matrix (nao, nao)
     double *overlap,
     // Dipole moment integral matrix (nao, nao, 3)
-    double *dpint, 
+    double *dpint,
     // Quadrupole moment integral matrix (nao, nao, 6)
-    double *qpint, 
+    double *qpint,
     // Hamiltonian matrix (nao, nao)
-    double *hamiltonian
-  )
-  {
-    /* Pack args into structures */
-    const adjacency_list alist
-    {
+    double *hamiltonian)
+{
+  /* Pack args into structures */
+  const adjacency_list alist{
       alist_inl, alist_inl_dim1,
       alist_nnl, alist_nnl_dim1,
       alist_nlat, alist_nlat_dim1,
-      alist_nltr, alist_nltr_dim1
-    };
-    const structure_type mol
-    {
+      alist_nltr, alist_nltr_dim1};
+  const structure_type mol{
       mol_nat, mol_nid, mol_nbd,
       mol_id, mol_id_dim1,
       mol_num, mol_num_dim1,
       mol_xyz, mol_xyz_dim1, mol_xyz_dim2,
-      mol_uhf, 
+      mol_uhf,
       mol_charge,
       mol_lattice, mol_lattice_dim1, mol_lattice_dim2,
       mol_periodic, mol_periodic_dim1,
-      mol_bond, mol_bond_dim1, mol_bond_dim2
-    };
-    printf("================= CUDA =================\n");
-    printf("at %s:%i\n", __func__, __LINE__);
-    printf("nao = %i\n", nao);
-    printf("nelem = %i\n", nelem);
-    printstruct(alist);
+      mol_bond, mol_bond_dim1, mol_bond_dim2};
+  const tb_hamiltonian h0{
+      h0_selfenergy, h0_selfenergy_dim1, h0_selfenergy_dim2,
+      h0_kcn, h0_kcn_dim1, h0_kcn_dim2,
+      h0_kq1, h0_kq1_dim1, h0_kq1_dim2,
+      h0_kq2, h0_kq2_dim1, h0_kq2_dim2,
+      h0_hscale, h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4,
+      h0_shpoly, h0_shpoly_dim1, h0_shpoly_dim2,
+      h0_rad, h0_rad_dim1,
+      h0_refocc, h0_refocc_dim1, h0_refocc_dim2};
+  const basis_type bas{
+      bas_maxl,
+      bas_nsh,
+      bas_nao,
+      bas_intcut,
+      bas_min_alpha,
+      bas_nsh_id, bas_nsh_id_dim1,
+      bas_nsh_at, bas_nsh_at_dim1,
+      bas_nao_sh, bas_nao_sh_dim1,
+      bas_iao_sh, bas_iao_sh_dim1,
+      bas_ish_at, bas_ish_at_dim1,
+      bas_ao2at, bas_ao2at_dim1,
+      bas_ao2sh, bas_ao2sh_dim1,
+      bas_sh2at, bas_sh2at_dim1,
+      cgto, cgto_dim1, cgto_dim2};
+  printf("================= CUDA =================\n");
+  printf("at %s:%i\n", __func__, __LINE__);
+  printf("nao = %i\n", nao);
+  printf("nelem = %i\n", nelem);
+  printstruct(bas);
+  // printstruct(alist);
+  // printstruct(mol);
+  // printstruct(h0);
 
-    printstruct(mol);
-    // printf("bas_nsh_id = \n");
-    // printr(bas_nsh_id_dim1, bas_nsh_id);
-    // printf("bas_nsh_at = \n");
-    // printr(bas_nsh_at_dim1, bas_nsh_at);
-    // printf("bas_nao_sh = \n");
-    // printr(bas_nao_sh_dim1, bas_nao_sh);
-    // printf("bas_iao_sh = \n");
-    // printr(bas_iao_sh_dim1, bas_iao_sh);
-    // printf("bas_ish_at = \n");
-    // printr(bas_ish_at_dim1, bas_ish_at);
-    // printf("bas_ao2at = \n");
-    // printr(bas_ao2at_dim1, bas_ao2at);
-    // printf("bas_ao2sh = \n");
-    // printr(bas_ao2sh_dim1, bas_ao2sh);
-    // printf("bas_sh2at = \n");
-    // printr(bas_sh2at_dim1, bas_sh2at);
+  // printf("bas_nsh_id = \n");
+  // printr(bas_nsh_id_dim1, bas_nsh_id);
+  // printf("bas_nsh_at = \n");
+  // printr(bas_nsh_at_dim1, bas_nsh_at);
+  // printf("bas_nao_sh = \n");
+  // printr(bas_nao_sh_dim1, bas_nao_sh);
+  // printf("bas_iao_sh = \n");
+  // printr(bas_iao_sh_dim1, bas_iao_sh);
+  // printf("bas_ish_at = \n");
+  // printr(bas_ish_at_dim1, bas_ish_at);
+  // printf("bas_ao2at = \n");
+  // printr(bas_ao2at_dim1, bas_ao2at);
+  // printf("bas_ao2sh = \n");
+  // printr(bas_ao2sh_dim1, bas_ao2sh);
+  // printf("bas_sh2at = \n");
+  // printr(bas_sh2at_dim1, bas_sh2at);
 
-    // for (int i = 0; i < cgto_dim1; ++i)
-    // {
-    //   for (int j = 0; j < cgto_dim2; ++j)
-    //   {
-    //     printf("cgto[%d][%d] = ", i, j);
-    //     printstruct(cgto[i * cgto_dim2 + j]);
-    //   }
-    // }
+  // for (int i = 0; i < cgto_dim1; ++i)
+  // {
+  //   for (int j = 0; j < cgto_dim2; ++j)
+  //   {
+  //     printf("cgto[%d][%d] = ", i, j);
+  //     printstruct(cgto[i * cgto_dim2 + j]);
+  //   }
+  // }
 
-    // printf("h0_selfenergy = \n");
-    // printr(h0_selfenergy_dim1, h0_selfenergy_dim2, h0_selfenergy);
-    // printf("h0_kcn = \n");
-    // printr(h0_kcn_dim1, h0_kcn_dim2, h0_kcn);
-    // printf("h0_kq1 = \n");
-    // printr(h0_kq1_dim1, h0_kq1_dim2, h0_kq1);
-    // printf("h0_kq2 = \n");
-    // printr(h0_kq2_dim1, h0_kq2_dim2, h0_kq2);
-    // printf("h0_hscale = \n");
-    // printr(h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4, h0_hscale);
+  // printf("h0_selfenergy = \n");
+  // printr(h0_selfenergy_dim1, h0_selfenergy_dim2, h0_selfenergy);
+  // printf("h0_kcn = \n");
+  // printr(h0_kcn_dim1, h0_kcn_dim2, h0_kcn);
+  // printf("h0_kq1 = \n");
+  // printr(h0_kq1_dim1, h0_kq1_dim2, h0_kq1);
+  // printf("h0_kq2 = \n");
+  // printr(h0_kq2_dim1, h0_kq2_dim2, h0_kq2);
+  // printf("h0_hscale = \n");
+  // printr(h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4, h0_hscale);
 
-    // printf("selfenergy = \n"); printr(nelem, selfenergy);
-    // printf("overlap = \n"); printr(nao, nao, overlap);
-    // printf("dpint = \n"); printr(nao, nao, 3, dpint);
-    // printf("qpint = \n"); printr(nao, nao, 6, qpint);
-    // printf("hamiltonian = \n"); printr(nao, nao, hamiltonian);
+  // printf("selfenergy = \n"); printr(nelem, selfenergy);
+  // printf("overlap = \n"); printr(nao, nao, overlap);
+  // printf("dpint = \n"); printr(nao, nao, 3, dpint);
+  // printf("qpint = \n"); printr(nao, nao, 6, qpint);
+  // printf("hamiltonian = \n"); printr(nao, nao, hamiltonian);
 
-    
-    // get_hamiltonian<<<1,1>>>();
-    // cudaDeviceSynchronize();
-  }
+  // get_hamiltonian<<<1,1>>>();
+  // cudaDeviceSynchronize();
+}
