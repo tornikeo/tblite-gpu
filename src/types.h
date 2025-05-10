@@ -23,11 +23,43 @@ typedef struct {
 } structure_type;
 
 typedef struct {
-    int *inl;  // Offset index in the neighbour map (dynamic array)
-    int *nnl;  // Number of neighbours for each atom (dynamic array)
-    int *nlat; // Index of the neighbouring atom (dynamic array)
-    int *nltr; // Cell index of the neighbouring atom (dynamic array)
+  const int *inl;  // Offset index in the neighbour map (dynamic array)
+  const int inl_dim1;
+  const int *nnl;  // Number of neighbours for each atom (dynamic array)
+  const int nnl_dim1;
+  const int *nlat; // Index of the neighbouring atom (dynamic array)
+  const int nlat_dim1;
+  const int *nltr; // Cell index of the neighbouring atom (dynamic array)
+  const int nltr_dim1;
 } adjacency_list;
+
+void printstruct(const adjacency_list adj)
+{
+  printf("adjacency_list:\n");
+  printf("  inl: ");
+  for (int i = 0; i < adj.inl_dim1; ++i)
+  {
+    printf("%d, ", adj.inl[i]);
+  }
+  printf("\n");
+  printf("  nnl: ");
+  for (int i = 0; i < adj.nnl_dim1; ++i)
+  {
+    printf("%d, ", adj.nnl[i]);
+  }
+  printf("\n");
+  printf("  nlat: ");
+  for (int i = 0; i < adj.nlat_dim1; ++i)
+  {
+    printf("%d, ", adj.nlat[i]);
+  }
+  printf("\n");
+  printf("  nltr: ");
+  for (int i = 0; i < adj.nltr_dim1; ++i)
+  {
+    printf("%d, ", adj.nltr[i]);
+  }
+}
 
 typedef struct {
     int ang;               // Angular momentum of this basis function
@@ -35,6 +67,27 @@ typedef struct {
     double alpha[MAXG];    // Exponent of the primitive Gaussian functions
     double coeff[MAXG];    // Contraction coefficients of the primitive Gaussian functions
 } cgto_type;
+
+void printstruct(const cgto_type cgto)
+{
+  printf("cgto_type:\n");
+  printf("  ang: %d\n", cgto.ang);
+  printf("  nprim: %d\n", cgto.nprim);
+  printf("  alpha: ");
+  for (int i = 0; i < cgto.nprim; ++i)
+  {
+    printf("%f, ", cgto.alpha[i]);
+  }
+  printf("\n");
+  printf("  coeff: ");
+  for (int i = 0; i < cgto.nprim; ++i)
+  {
+    printf("%f, ", cgto.coeff[i]);
+  }
+  printf("\n");
+}
+
+
 
 // Equivalent C struct for basis_type
 typedef struct {

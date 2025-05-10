@@ -346,31 +346,7 @@ void printr(int n, int m, int o, int p, const T *arr)
   printf("\n");
 }
 
-/*typedef struct {
-    int ang;               // Angular momentum of this basis function
-    int nprim;             // Contraction length of this basis function
-    double alpha[MAXG];    // Exponent of the primitive Gaussian functions
-    double coeff[MAXG];    // Contraction coefficients of the primitive Gaussian functions
-} cgto_type;*/
 
-void printstruct(const cgto_type cgto)
-{
-  printf("cgto_type:\n");
-  printf("  ang: %d\n", cgto.ang);
-  printf("  nprim: %d\n", cgto.nprim);
-  printf("  alpha: ");
-  for (int i = 0; i < cgto.nprim; ++i)
-  {
-    printf("%f, ", cgto.alpha[i]);
-  }
-  printf("\n");
-  printf("  coeff: ");
-  for (int i = 0; i < cgto.nprim; ++i)
-  {
-    printf("%f, ", cgto.coeff[i]);
-  }
-  printf("\n");
-}
 
 extern "C" {
   void get_vec_(
@@ -421,9 +397,18 @@ extern "C" {
 extern "C" void cuda_get_hamiltonian_kernel_(
     int nao, 
     int nelem,
+    
+    /* adjacency_list */
+    const int *alist_inl,
+    int alist_inl_dim1,
+    const int *alist_nnl,
+    int alist_nnl_dim1,
+    const int *alist_nlat,
+    int alist_nlat_dim1,
+    const int *alist_nltr,
+    int alist_nltr_dim1,
 
     /* basis_type */
-    
     const int bas_maxl,
     const int bas_nsh,
     const int bas_nao,
@@ -478,9 +463,20 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     double *hamiltonian
   )
   {
+    /* Pack args into structures */
+    const adjacency_list alist
+    {
+      alist_inl, alist_inl_dim1,
+      alist_nnl, alist_nnl_dim1,
+      alist_nlat, alist_nlat_dim1,
+      alist_nltr, alist_nltr_dim1
+    };
+    printf("================= CUDA =================\n");
     printf("at %s:%i\n", __func__, __LINE__);
     // printf("nao = %i\n", nao);
     // printf("nelem = %i\n", nelem);
+
+    printstruct(alist);
 
     // printf("bas_nsh_id = \n");
     // printr(bas_nsh_id_dim1, bas_nsh_id);
@@ -499,14 +495,14 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     // printf("bas_sh2at = \n");
     // printr(bas_sh2at_dim1, bas_sh2at);
 
-    for (int i = 0; i < cgto_dim1; ++i)
-    {
-      for (int j = 0; j < cgto_dim2; ++j)
-      {
-        printf("cgto[%d][%d] = ", i, j);
-        printstruct(cgto[i * cgto_dim2 + j]);
-      }
-    }
+    // for (int i = 0; i < cgto_dim1; ++i)
+    // {
+    //   for (int j = 0; j < cgto_dim2; ++j)
+    //   {
+    //     printf("cgto[%d][%d] = ", i, j);
+    //     printstruct(cgto[i * cgto_dim2 + j]);
+    //   }
+    // }
 
     // printf("h0_selfenergy = \n");
     // printr(h0_selfenergy_dim1, h0_selfenergy_dim2, h0_selfenergy);
