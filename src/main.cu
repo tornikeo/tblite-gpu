@@ -416,127 +416,200 @@ __global__ void get_hamiltonian(
   */
   // constants 
   // integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
+  int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+
   constexpr int msao[7] = {1, 3, 5, 7, 9, 11, 13};
 
   // locals
-  int i, j, l;
-  int iat, jat, izp, jzp, itr, k, img, inl;
-  int ish, jsh, is, js, ii, jj, iao, jao, nao, ij;
-  double rr, r2, vec[3], cutoff2, hij, shpoly, dtmpj[3], qtmpj[6];
+  int i = 0, j = 0, l = 0;
+  int iat = 0, jat = 0, izp = 0, jzp = 0, itr = 0, k = 0, img = 0, inl = 0;
+  int ish = 0, jsh = 0, is = 0, js = 0, ii = 0, jj = 0, iao = 0, jao = 0, nao = 0, ij = 0;
+  double rr = 0.0, r2 = 0.0, vec[3] = {0.0}, cutoff2 = 0.0, hij = 0.0, shpoly = 0.0, dtmpj[3] = {0.0}, qtmpj[6] = {0.0} ;
 
   // clean overlap, dpint, qpint, hamiltonian
-  overlap.fill(0.0);
-  dpint.fill(0.0);
-  qpint.fill(0.0);
-  hamiltonian.fill(0.0);
+  if (thread_id == 0)
+  {
+    // printf("C: Cleaning overlap, dpint, qpint, hamiltonian\n");
+    overlap.fill(0.0);
+    dpint.fill(0.0);
+    qpint.fill(0.0);
+    hamiltonian.fill(0.0);
+  }
+  __syncthreads();
 
   // allocate stmp, dtmpi, qtmpi
-  // double *stmp_ptr = (double *)xmalloc(msao[bas.maxl] * msao[bas.maxl] * sizeof(double));
-  // double *dtmpi_ptr = (double *)xmalloc(3 * msao[bas.maxl] * msao[bas.maxl] * sizeof(double));
-  // double *qtmpi_ptr = (double *)xmalloc(6 * msao[bas.maxl] * msao[bas.maxl] * sizeof(double));
+  device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]); stmp.fill(0.0);
+  device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3); dtmpi.fill(0.0);
+  device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6); qtmpi.fill(0.0);
 
-  device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]);
-  device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3);
-  device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6);
+  // stmp.fill(1.0);
+  // dtmpi.fill(2.0);
+  // qtmpi.fill(3.0);
+  // // Assert device tensor works
+  // printf("stmp = \n");
+  // stmp.print();
+  // printf("dtmpi = \n");
+  // dtmpi.print();
+  // printf("qtmpi = \n");
+  // qtmpi.print();
+/*do iat = 1, mol%nat
+    izp = mol%id(iat)
+    is = bas%ish_at(iat)
+    inl = alist%inl(iat)
+    do img = 1, alist%nnl(iat)
+      jat = alist%nlat(img+inl)
+      itr = alist%nltr(img+inl)
+      jzp = mol%id(jat)
+      js = bas%ish_at(jat)
+      vec(:) = mol%xyz(:, iat) - mol%xyz(:, jat) - trans(:, itr)
+      r2 = vec(1)**2 + vec(2)**2 + vec(3)**2
+      rr = sqrt(sqrt(r2) / (h0%rad(jzp) + h0%rad(izp)))
+      do ish = 1, bas%nsh_id(izp)
+          ii = bas%iao_sh(is+ish)
+          do jsh = 1, bas%nsh_id(jzp)
+            jj = bas%iao_sh(js+jsh)*/
+  iat = thread_id; if (iat >= mol.nat) return;
+  izp = mol.id[iat];
+  is = bas.ish_at[iat];
+  inl = alist.inl[iat];
+  printf("we are here iat = %d, izp = %d, is = %d, inl = %d\n", iat, izp, is, inl);
+  printf("nnl is %d\n", alist.nnl[iat]);
+  for (img = 0; img < alist.nnl[iat]; ++img)
+  {
+    jat = alist.nlat[img + inl];
+    itr = alist.nltr[img + inl];
+    jzp = mol.id[jat];
+    js = bas.ish_at[jat];
+    printf("iat = %d, jat = %d, jzp = %d, js = %d, itr = %d\n", iat, jat, jzp, js, itr);
+    printf("mol.xyz = \n");
+    mol.xyz.print();
+    printf("trans = \n");
+    trans.print();
 
-  stmp.fill(1.0);
-  dtmpi.fill(2.0);
-  qtmpi.fill(3.0);
+    for (int k = 0; k < 3; ++k)
+    {
+      vec[k] = mol.xyz(iat, k) - mol.xyz(jat, k) - trans(itr, k);
+    }
 
-  // Assert device tensor works
-  printf("stmp = \n");
-  stmp.print();
-
-  printf("dtmpi = \n");
-  dtmpi.print();
-
-  printf("qtmpi = \n");
-  qtmpi.print();
-
-  // free allocations
-  // free(stmp_ptr);
-  // free(dtmpi_ptr);
-  // free(qtmpi_ptr);
+    printf("vec = (%f, %f, %f)\n", vec[0], vec[1], vec[2]);
+    r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
+    printf("h0.rad = \n");
+    h0.rad.print();
+    
+    rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
+    // debug print state
+    printf("iat = %d, jat = %d, izp = %d, jzp = %d, vec = (%f, %f, %f), r2 = %f, rr = %f\n", iat, jat, izp, jzp, vec[0], vec[1], vec[2], r2, rr);
+  }
 }
 
-extern "C" void cuda_get_hamiltonian_kernel_(
-    int nao,
-    int nelem,
+extern "C" void cuda_get_hamiltonian_kernel_ (
+  int nao,
+  int nelem,
 
-    /* structure_type */
-    const int mol_nat,
-    const int mol_nid,
-    const int mol_nbd,
-    const int *mol_id, int mol_id_dim1,
-    const int *mol_num, int mol_num_dim1,
-    const double *mol_xyz, int mol_xyz_dim1, int mol_xyz_dim2,
-    const int mol_uhf,
-    const double mol_charge,
-    const double *mol_lattice, int mol_lattice_dim1, int mol_lattice_dim2,
-    const int *mol_periodic, int mol_periodic_dim1,
-    const int *mol_bond, int mol_bond_dim1, int mol_bond_dim2,
+  /* structure_type */
+  const int mol_nat,
+  const int mol_nid,
+  const int mol_nbd,
+  const int *mol_id, int mol_id_dim1,
+  const int *mol_num, int mol_num_dim1,
+  const double *mol_xyz, int mol_xyz_dim1, int mol_xyz_dim2,
+  const int mol_uhf,
+  const double mol_charge,
+  const double *mol_lattice, int mol_lattice_dim1, int mol_lattice_dim2,
+  const int *mol_periodic, int mol_periodic_dim1,
+  const int *mol_bond, int mol_bond_dim1, int mol_bond_dim2,
 
-    /* trans for lattice */
-    const double *trans, const int trans_dim1, const int trans_dim2,
+  /* trans for lattice */
+  const double *trans, const int trans_dim1, const int trans_dim2,
 
-    /* adjacency_list */
-    const int *alist_inl, int alist_inl_dim1,
-    const int *alist_nnl, int alist_nnl_dim1,
-    const int *alist_nlat, int alist_nlat_dim1,
-    const int *alist_nltr, int alist_nltr_dim1,
+  /* adjacency_list */
+  const int *alist_inl, int alist_inl_dim1,
+  const int *alist_nnl, int alist_nnl_dim1,
+  const int *alist_nlat, int alist_nlat_dim1,
+  const int *alist_nltr, int alist_nltr_dim1,
 
-    /* basis_type */
-    const int bas_maxl,
-    const int bas_nsh,
-    const int bas_nao,
-    const double bas_intcut,
-    const double bas_min_alpha,
-    const int *bas_nsh_id, int bas_nsh_id_dim1,
-    const int *bas_nsh_at, int bas_nsh_at_dim1,
-    const int *bas_nao_sh, int bas_nao_sh_dim1,
-    const int *bas_iao_sh, int bas_iao_sh_dim1,
-    const int *bas_ish_at, int bas_ish_at_dim1,
-    const int *bas_ao2at, int bas_ao2at_dim1,
-    const int *bas_ao2sh, int bas_ao2sh_dim1,
-    const int *bas_sh2at, int bas_sh2at_dim1,
-    const cgto_type *cgto, int cgto_dim1, int cgto_dim2,
+  /* basis_type */
+  const int bas_maxl,
+  const int bas_nsh,
+  const int bas_nao,
+  const double bas_intcut,
+  const double bas_min_alpha,
+  const int *bas_nsh_id, int bas_nsh_id_dim1,
+  const int *bas_nsh_at, int bas_nsh_at_dim1,
+  const int *bas_nao_sh, int bas_nao_sh_dim1,
+  const int *bas_iao_sh, int bas_iao_sh_dim1,
+  const int *bas_ish_at, int bas_ish_at_dim1,
+  const int *bas_ao2at, int bas_ao2at_dim1,
+  const int *bas_ao2sh, int bas_ao2sh_dim1,
+  const int *bas_sh2at, int bas_sh2at_dim1,
+  const cgto_type *cgto, int cgto_dim1, int cgto_dim2,
 
-    /* tb_hamiltonian */
-    const double *h0_selfenergy, int h0_selfenergy_dim1, int h0_selfenergy_dim2,
-    const double *h0_kcn, int h0_kcn_dim1, int h0_kcn_dim2,
-    const double *h0_kq1, int h0_kq1_dim1, int h0_kq1_dim2,
-    const double *h0_kq2, int h0_kq2_dim1, int h0_kq2_dim2,
-    const double *h0_hscale, int h0_hscale_dim1, int h0_hscale_dim2, int h0_hscale_dim3, int h0_hscale_dim4,
-    const double *h0_shpoly, int h0_shpoly_dim1, int h0_shpoly_dim2,
-    const double *h0_rad, int h0_rad_dim1,
-    const double *h0_refocc, int h0_refocc_dim1, int h0_refocc_dim2,
+  /* tb_hamiltonian */
+  const double *h0_selfenergy, int h0_selfenergy_dim1, int h0_selfenergy_dim2,
+  const double *h0_kcn, int h0_kcn_dim1, int h0_kcn_dim2,
+  const double *h0_kq1, int h0_kq1_dim1, int h0_kq1_dim2,
+  const double *h0_kq2, int h0_kq2_dim1, int h0_kq2_dim2,
+  const double *h0_hscale, int h0_hscale_dim1, int h0_hscale_dim2, int h0_hscale_dim3, int h0_hscale_dim4,
+  const double *h0_shpoly, int h0_shpoly_dim1, int h0_shpoly_dim2,
+  const double *h0_rad, int h0_rad_dim1,
+  const double *h0_refocc, int h0_refocc_dim1, int h0_refocc_dim2,
 
-    // Diagonal elememts of the Hamiltonian  (nel)
-    const double *selfenergy,
-    // Overlap integral matrix (nao, nao)
-    double *overlap,
-    // Dipole moment integral matrix (nao, nao, 3)
-    double *dpint,
-    // Quadrupole moment integral matrix (nao, nao, 6)
-    double *qpint,
-    // Hamiltonian matrix (nao, nao)
-    double *hamiltonian)
-{
+  // Diagonal elememts of the Hamiltonian  (nel)
+  const double *selfenergy,
+  // Overlap integral matrix (nao, nao)
+  double *overlap,
+  // Dipole moment integral matrix (nao, nao, 3)
+  double *dpint,
+  // Quadrupole moment integral matrix (nao, nao, 6)
+  double *qpint,
+  // Hamiltonian matrix (nao, nao)
+  double *hamiltonian)
+{ 
+  printf("================= CUDA =================\n");
   // DEBUG print values of h0_hscale_dim1, int h0_hscale_dim2, int h0_hscale_dim3, int h0_hscale_dim4
-  printf("====================== DEBUG =================\n");
-  printf("h0_hscale_dim1 = %d\n", h0_hscale_dim1);
-  printf("h0_hscale_dim2 = %d\n", h0_hscale_dim2);
-  printf("h0_hscale_dim3 = %d\n", h0_hscale_dim3);
-  printf("h0_hscale_dim4 = %d\n", h0_hscale_dim4);
-  printf("======================= DEBUG =================\n");
+  // printf("====================== DEBUG =================\n");
+  // printf("h0_hscale_dim1 = %d\n", h0_hscale_dim1);
+  // printf("h0_hscale_dim2 = %d\n", h0_hscale_dim2);
+  // printf("h0_hscale_dim3 = %d\n", h0_hscale_dim3);
+  // printf("h0_hscale_dim4 = %d\n", h0_hscale_dim4);
+  // printf("======================= DEBUG =================\n");
 
   /* Pack args into structures */
+  // debug print alist entires
+  // printf("alist_inl = \n");
+  // for (int i = 0; i < alist_inl_dim1; ++i)
+  // {
+  //   printf("%d, ", alist_inl[i]);
+  // }
+  // printf("\n");
+  // printf("alist_nnl = \n");
+  // for (int i = 0; i < alist_nnl_dim1; ++i)
+  // {
+  //   printf("%d, ", alist_nnl[i]);
+  // }
+  // printf("\n");
+  // printf("alist_nlat = \n");
+  // for (int i = 0; i < alist_nlat_dim1; ++i)
+  // {
+  //   printf("%d, ", alist_nlat[i]);
+  // }
+  // printf("\n");
+  // printf("alist_nltr = \n");
+  // for (int i = 0; i < alist_nltr_dim1; ++i)
+  // {
+  //   printf("%d, ", alist_nltr[i]);
+  // }
+  // printf("\n");
+
+
   const adjacency_list alist{
       tensor1d_t(alist_inl, alist_inl_dim1),
       tensor1d_t(alist_nnl, alist_nnl_dim1),
       tensor1d_t(alist_nlat, alist_nlat_dim1),
       tensor1d_t(alist_nltr, alist_nltr_dim1)};
-
+      
+  // printstruct(alist);
+  
   const structure_type mol{
       mol_nat, mol_nid, mol_nbd,
       tensor1d_t(mol_id, mol_id_dim1),
@@ -565,6 +638,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       tensor1d_t(h0_rad, h0_rad_dim1),
       // h0_refocc, h0_refocc_dim1, h0_refocc_dim2};
       tensor2d_t(h0_refocc, h0_refocc_dim1, h0_refocc_dim2)};
+
   const basis_type bas{
       bas_maxl,
       bas_nsh,
@@ -589,7 +663,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       tensor1d_t(bas_sh2at, bas_sh2at_dim1),
       // cgto, cgto_dim1, cgto_dim2};
       tensor2d_t(cgto, cgto_dim1, cgto_dim2)};
-  printf("================= CUDA =================\n");
+
 
 
   const structure_type d_mol{
@@ -675,7 +749,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   cudaEventRecord(start);
   
   // Launch kernel
-  get_hamiltonian<<<1, 1>>>(
+  get_hamiltonian<<<1, mol.nat>>>(
     d_mol,
     d_trans,
     d_alist,
@@ -696,7 +770,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess) {
     printf("CUDA Error: %s\n", cudaGetErrorString(err));
-    return;
+    exit(EXIT_FAILURE);
   }
 
   // Calculate elapsed time
