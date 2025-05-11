@@ -359,21 +359,22 @@ void printstruct(const tb_hamiltonian &h0)
     printf("\n");
   }
   printf("  hscale: ");
-  for (int i = 0; i < h0.hscale.dim1; ++i)
-  {
-    for (int j = 0; j < h0.hscale.dim2; ++j)
-    {
-      for (int k = 0; k < h0.hscale.dim3; ++k)
-      {
-        for (int l = 0; l < h0.hscale.dim4; ++l)
-        {
-          printf("%f, ", h0.hscale(i, j, k, l));
-        }
-      }
-      printf("\n");
-    }
-    printf("\n");
-  }
+  h0.hscale.print();
+  // for (int i = 0; i < h0.hscale.dim1; ++i)
+  // {
+  //   for (int j = 0; j < h0.hscale.dim2; ++j)
+  //   {
+  //     for (int k = 0; k < h0.hscale.dim3; ++k)
+  //     {
+  //       for (int l = 0; l < h0.hscale.dim4; ++l)
+  //       {
+  //         printf("%f, ", h0.hscale(i, j, k, l));
+  //       }
+  //     }
+  //     printf("\n");
+  //   }
+  //   printf("\n");
+  // }
   printf("  shpoly: ");
   for (int i = 0; i < h0.shpoly.dim1; ++i)
   {

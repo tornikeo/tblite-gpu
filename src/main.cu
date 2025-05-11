@@ -351,14 +351,7 @@ __global__ void get_hamiltonian(
   printstruct(mol);
 
   printf("trans = \n");
-  for(int i = 0; i < trans.dim1; ++i)
-  {
-    for(int j = 0; j < trans.dim2; ++j)
-    {
-      printf("%f ", trans(i,j));
-    }
-  }
-  printf("\n");
+  trans.print();
 
   printf("alist = \n");
   printstruct(alist);
@@ -447,6 +440,14 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     // Hamiltonian matrix (nao, nao)
     double *hamiltonian)
 {
+  // DEBUG print values of h0_hscale_dim1, int h0_hscale_dim2, int h0_hscale_dim3, int h0_hscale_dim4
+  printf("====================== DEBUG =================\n");
+  printf("h0_hscale_dim1 = %d\n", h0_hscale_dim1);
+  printf("h0_hscale_dim2 = %d\n", h0_hscale_dim2);
+  printf("h0_hscale_dim3 = %d\n", h0_hscale_dim3);
+  printf("h0_hscale_dim4 = %d\n", h0_hscale_dim4);
+  printf("======================= DEBUG =================\n");
+
   /* Pack args into structures */
   const adjacency_list alist{
       tensor1d_t(alist_inl, alist_inl_dim1),

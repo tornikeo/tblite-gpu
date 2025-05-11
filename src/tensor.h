@@ -127,7 +127,7 @@ public:
   __host__ __device__ 
   inline void print() const
   {
-    printf("(%i) ", dim1);
+    printf("(%i)\n", dim1);
     printf("[");
     for (int i = 0; i < dim1; ++i)
     {
@@ -265,15 +265,16 @@ public:
   __host__ __device__
   inline void print() const
   {
-    printf("(%i, %i) ", dim1, dim2);
+    printf("(%i, %i)\n", dim1, dim2);
     printf("[");
     for (int i = 0; i < dim1; ++i)
     {
+      printf("[");
       for (int j = 0; j < dim2; ++j)
       {
         printf("%f, ", static_cast<double>(data[i * dim2 + j]));
       }
-      printf("\n");
+      printf(i == dim1 - 1 ? "]" : "],\n ");
     }
     printf("]\n");
   }
@@ -410,19 +411,21 @@ public:
   __host__ __device__
   inline void print() const
   {
-    printf("(%i, %i, %i) ", dim1, dim2, dim3);
+    printf("(%i, %i, %i)\n", dim1, dim2, dim3);
     printf("[");
     for (int i = 0; i < dim1; ++i)
     {
+      printf("[");
       for (int j = 0; j < dim2; ++j)
       {
+        printf(" [");
         for (int k = 0; k < dim3; ++k)
         {
           printf("%f, ", static_cast<double>(data[i * dim2 * dim3 + j * dim3 + k]));
         }
-        printf("\n");
+        printf(j == dim2 - 1 ? "]" : "],\n ");
       }
-      printf("\n");
+      printf(i == dim1 - 1 ? "]" : "],\n ");
     }
     printf("]\n");
   }
@@ -463,6 +466,7 @@ public:
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3 && l >= 0 && l < dim4);
     return data[i * dim2 * dim3 * dim4 + j * dim3 * dim4 + k * dim4 + l];
   }
+  
   tensor4d_t(const tensor4d_t &other)
   {
     this->dim1 = other.dim1;
@@ -566,19 +570,22 @@ public:
     printf("[");
     for (int i = 0; i < dim1; ++i)
     {
+      printf("[");
       for (int j = 0; j < dim2; ++j)
       {
+        printf("[");
         for (int k = 0; k < dim3; ++k)
         {
+          printf("[");
           for (int l = 0; l < dim4; ++l)
           {
             printf("%f, ", static_cast<double>(data[i * dim2 * dim3 * dim4 + j * dim3 * dim4 + k * dim4 + l]));
           }
-          printf("\n");
+          printf(k == dim3 - 1 ? "]" : "],\n ");
         }
-        printf("\n");
+        printf("]\n");
       }
-      printf("\n");
+      printf("]\n");
     }
     printf("]\n");
   }
