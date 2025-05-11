@@ -33,7 +33,7 @@ __device__ __constant__ double gtrafo[9][15];
 
 __global__ void hello_kernel()
 {
-  printf("%i %i Says Hello!");
+  printf("%i %i Says Hello!", blockIdx.x, threadIdx.x);
 }
 
 // Kernel to test the constants
@@ -277,7 +277,17 @@ __device__ void transform0(int lj, int li, const double *cart, double *sphr, int
   }
 }
 
-
+/*
+    // Diagonal elememts of the Hamiltonian  (nel)
+    const double *selfenergy,
+    // Overlap integral matrix (nao, nao)
+    double *overlap,
+    // Dipole moment integral matrix (nao, nao, 3)
+    double *dpint,
+    // Quadrupole moment integral matrix (nao, nao, 6)
+    double *qpint,
+    // Hamiltonian matrix (nao, nao)
+    double *hamiltonian)*/
 
 extern "C"
 {
@@ -328,8 +338,13 @@ __global__ void get_hamiltonian(
   const structure_type mol, 
   const tensor2d_t<double> trans,
   const adjacency_list alist,
-  const basis_type bas
-)
+  const basis_type bas,
+  const tb_hamiltonian h0,
+  const tensor1d_t<double> selfenergy,
+  tensor2d_t<double> overlap,
+  tensor3d_t<double> dpint,
+  tensor3d_t<double> qpint,
+  tensor2d_t<double> hamiltonian) 
 {
   printf("================= KERNEL =================\n");
   printf("mol = \n");
@@ -350,6 +365,24 @@ __global__ void get_hamiltonian(
 
   printf("bas = \n");
   printstruct(bas);
+
+  printf("h0 = \n");
+  printstruct(h0);
+
+  printf("selfenergy = \n");
+  selfenergy.print();
+
+  printf("overlap = \n");
+  overlap.print();
+
+  printf("dpint = \n");
+  dpint.print();
+
+  printf("qpint = \n");
+  qpint.print();
+
+  printf("hamiltonian = \n");
+  hamiltonian.print();
 }
 extern "C" void cuda_get_hamiltonian_kernel_(
     int nao,
@@ -433,14 +466,22 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       tensor2d_t(mol_bond, mol_bond_dim1, mol_bond_dim2)};
 
   const tb_hamiltonian h0{
-      h0_selfenergy, h0_selfenergy_dim1, h0_selfenergy_dim2,
-      h0_kcn, h0_kcn_dim1, h0_kcn_dim2,
-      h0_kq1, h0_kq1_dim1, h0_kq1_dim2,
-      h0_kq2, h0_kq2_dim1, h0_kq2_dim2,
-      h0_hscale, h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4,
-      h0_shpoly, h0_shpoly_dim1, h0_shpoly_dim2,
-      h0_rad, h0_rad_dim1,
-      h0_refocc, h0_refocc_dim1, h0_refocc_dim2};
+      // h0_selfenergy, h0_selfenergy_dim1, h0_selfenergy_dim2,
+      tensor2d_t(h0_selfenergy, h0_selfenergy_dim1, h0_selfenergy_dim2),
+      // h0_kcn, h0_kcn_dim1, h0_kcn_dim2,
+      tensor2d_t(h0_kcn, h0_kcn_dim1, h0_kcn_dim2),
+      // h0_kq1, h0_kq1_dim1, h0_kq1_dim2,
+      tensor2d_t(h0_kq1, h0_kq1_dim1, h0_kq1_dim2),
+      // h0_kq2, h0_kq2_dim1, h0_kq2_dim2,
+      tensor2d_t(h0_kq2, h0_kq2_dim1, h0_kq2_dim2),
+      // h0_hscale, h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4,
+      tensor4d_t(h0_hscale, h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4),
+      // h0_shpoly, h0_shpoly_dim1, h0_shpoly_dim2,
+      tensor2d_t(h0_shpoly, h0_shpoly_dim1, h0_shpoly_dim2),
+      // h0_rad, h0_rad_dim1,
+      tensor1d_t(h0_rad, h0_rad_dim1),
+      // h0_refocc, h0_refocc_dim1, h0_refocc_dim2};
+      tensor2d_t(h0_refocc, h0_refocc_dim1, h0_refocc_dim2)};
   const basis_type bas{
       bas_maxl,
       bas_nsh,
@@ -514,6 +555,31 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     // cgto, cgto_dim1, cgto_dim2};
     // tensor2d_t<cgto_type>(bas.cgto, bas.cgto_dim1, bas.cgto_dim2).to_device()};
     bas.cgto.to_device()};
+  
+  const tb_hamiltonian d_h0{
+    // tensor2d_t(h0_selfenergy, h0_selfenergy_dim1, h0_selfenergy_dim2).to_device(),
+    h0.selfenergy.to_device(),
+    // tensor2d_t(h0_kcn, h0_kcn_dim1, h0_kcn_dim2).to_device(),
+    h0.kcn.to_device(),
+    // tensor2d_t(h0_kq1, h0_kq1_dim1, h0_kq1_dim2).to_device(),
+    h0.kq1.to_device(),
+    // tensor2d_t(h0_kq2, h0_kq2_dim1, h0_kq2_dim2).to_device(),
+    h0.kq2.to_device(),
+    // tensor4d_t(h0_hscale, h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4).to_device(),
+    h0.hscale.to_device(),
+    // tensor2d_t(h0_shpoly, h0_shpoly_dim1, h0_shpoly_dim2).to_device(),
+    h0.shpoly.to_device(),
+    // tensor1d_t(h0_rad, h0_rad_dim1).to_device(),
+    h0.rad.to_device(),
+    // tensor2d_t(h0_refocc, h0_refocc_dim1, h0_refocc_dim2).to_device()};
+    h0.refocc.to_device()};
+
+  const tensor1d_t<double> d_selfenergy = tensor1d_t<double>(selfenergy, nelem).to_device();
+  
+  tensor2d_t<double> d_overlap = tensor2d_t<double>(overlap, nao, nao).to_device();
+  tensor3d_t<double> d_dpint = tensor3d_t<double>(dpint, nao, nao, 3).to_device();
+  tensor3d_t<double> d_qpint = tensor3d_t<double>(qpint, nao, nao, 6).to_device();
+  tensor2d_t<double> d_hamiltonian = tensor2d_t<double>(hamiltonian, nao, nao).to_device();
 
   // Start timing
   cudaEvent_t start, stop;
@@ -526,7 +592,13 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     d_mol,
     d_trans,
     d_alist,
-    d_basis
+    d_basis,
+    d_h0,
+    d_selfenergy,
+    d_overlap,
+    d_dpint,
+    d_qpint,
+    d_hamiltonian
   );
 
   // Stop timing

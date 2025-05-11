@@ -138,7 +138,8 @@ typedef struct {
     double coeff[MAXG];    // Contraction coefficients of the primitive Gaussian functions
 } cgto_type;
 
-void printstruct(const cgto_type cgto)
+__host__ __device__
+void printstruct(const cgto_type &cgto)
 {
   printf("cgto_type:\n");
   printf("  ang: %d\n", cgto.ang);
@@ -269,15 +270,15 @@ void printstruct(const basis_type &bas)
   printf("\n");
   printf("  cgto: ");
   // DEBUG
-  // printf("cgto dims are %d, %d\n", bas.cgto.dim1 + 1, bas.cgto.dim2 + 1);
-  // for(int i = 0; i < bas.cgto.dim1; ++i)
-  // {
-  //   for (int j = 0; j < bas.cgto.dim2; ++j)
-  //   {
-  //     printf("cgto[%d][%d] = \n", i, j);
-  //     printstruct(bas.cgto(i,j));
-  //   }
-  // }
+  printf("cgto dims are %d, %d\n", bas.cgto.dim1 + 1, bas.cgto.dim2 + 1);
+  for(int i = 0; i < bas.cgto.dim1; ++i)
+  {
+    for (int j = 0; j < bas.cgto.dim2; ++j)
+    {
+      printf("cgto[%d][%d] = \n", i, j);
+      printstruct(bas.cgto(i,j));
+    }
+  }
 }
 
 // Hamiltonian interaction data structure
@@ -299,65 +300,74 @@ typedef struct {
         integer(c_int), value :: h0_rad_dim1
         real(c_double), intent(in) :: h0_refocc(*)
         integer(c_int), value :: h0_refocc_dim1, h0_refocc_dim2*/
-  const double *selfenergy; const int selfenergy_dim1; const int selfenergy_dim2;
-  const double *kcn; const int kcn_dim1; const int kcn_dim2;
-  const double *kq1; const int kq1_dim1; const int kq1_dim2;
-  const double *kq2; const int kq2_dim1; const int kq2_dim2;
-  const double *hscale; const int hscale_dim1; const int hscale_dim2; const int hscale_dim3; const int hscale_dim4;
-  const double *shpoly; const int shpoly_dim1; const int shpoly_dim2;
-  const double *rad; const int rad_dim1;
-  const double *refocc; const int refocc_dim1; const int refocc_dim2;
+  // const double *selfenergy; const int selfenergy_dim1; const int selfenergy_dim2;
+  // const double *kcn; const int kcn_dim1; const int kcn_dim2;
+  // const double *kq1; const int kq1_dim1; const int kq1_dim2;
+  // const double *kq2; const int kq2_dim1; const int kq2_dim2;
+  // const double *hscale; const int hscale_dim1; const int hscale_dim2; const int hscale_dim3; const int hscale_dim4;
+  // const double *shpoly; const int shpoly_dim1; const int shpoly_dim2;
+  // const double *rad; const int rad_dim1;
+  // const double *refocc; const int refocc_dim1; const int refocc_dim2;
+  const tensor2d_t<double> selfenergy; // 2D array of self-energy
+  const tensor2d_t<double> kcn; // 2D array of kcn
+  const tensor2d_t<double> kq1; // 2D array of kq1
+  const tensor2d_t<double> kq2; // 2D array of kq2
+  const tensor4d_t<double> hscale; // 4D array of hscale
+  const tensor2d_t<double> shpoly; // 2D array of shpoly
+  const tensor1d_t<double> rad; // 1D array of radial functions
+  const tensor2d_t<double> refocc; // 2D array of reference occupations
 } tb_hamiltonian;
 
-void printstruct(const tb_hamiltonian h)
+__host__ __device__
+void printstruct(const tb_hamiltonian &h0)
 {
   printf("tb_hamiltonian:\n");
   printf("  selfenergy: ");
-  for (int i = 0; i < h.selfenergy_dim1; ++i)
+  for (int i = 0; i < h0.selfenergy.dim1; ++i)
   {
-    for (int j = 0; j < h.selfenergy_dim2; ++j)
+    for (int j = 0; j < h0.selfenergy.dim2; ++j)
     {
-      printf("%f, ", h.selfenergy[i * h.selfenergy_dim2 + j]);
+      printf("%f, ", h0.selfenergy(i, j));
     }
     printf("\n");
   }
   printf("  kcn: ");
-  for (int i = 0; i < h.kcn_dim1; ++i)
+  for (int i = 0; i < h0.kcn.dim1; ++i)
   {
-    for (int j = 0; j < h.kcn_dim2; ++j)
+    for (int j = 0; j < h0.kcn.dim2; ++j)
     {
-      printf("%f, ", h.kcn[i * h.kcn_dim2 + j]);
+      printf("%f, ", h0.kcn(i, j));
     }
     printf("\n");
   }
   printf("  kq1: ");
-  for (int i = 0; i < h.kq1_dim1; ++i)
+  for (int i = 0; i < h0.kq1.dim1; ++i)
   {
-    for (int j = 0; j < h.kq1_dim2; ++j)
+    for (int j = 0; j < h0.kq1.dim2; ++j)
     {
-      printf("%f, ", h.kq1[i * h.kq1_dim2 + j]);
+      printf("%f, ", h0.kq1(i, j));
     }
     printf("\n");
   }
   printf("  kq2: ");
-  for (int i = 0; i < h.kq2_dim1; ++i)
+  for (int i = 0; i < h0.kq2.dim1; ++i)
   {
-    for (int j = 0; j < h.kq2_dim2; ++j)
+    for (int j = 0; j < h0.kq2.dim2; ++j)
     {
-      printf("%f, ", h.kq2[i * h.kq2_dim2 + j]);
+      printf("%f, ", h0.kq2(i, j));
     }
     printf("\n");
   }
   printf("  hscale: ");
-  for (int i = 0; i < h.hscale_dim1; ++i)
+  for (int i = 0; i < h0.hscale.dim1; ++i)
   {
-    for (int j = 0; j < h.hscale_dim2; ++j)
+    for (int j = 0; j < h0.hscale.dim2; ++j)
     {
-      for (int k = 0; k < h.hscale_dim3; ++k)
+      for (int k = 0; k < h0.hscale.dim3; ++k)
       {
-        for (int l = 0; l < h.hscale_dim4; ++l)
+        for (int l = 0; l < h0.hscale.dim4; ++l)
         {
-          printf("%f, ", h.hscale[i * h.hscale_dim2 * h.hscale_dim3 * h.hscale_dim4 + j * h.hscale_dim3 * h.hscale_dim4 + k * h.hscale_dim4 + l]);
+          printf("%f, ", h0.hscale(i, j, k, l));
         }
       }
       printf("\n");
@@ -365,26 +375,26 @@ void printstruct(const tb_hamiltonian h)
     printf("\n");
   }
   printf("  shpoly: ");
-  for (int i = 0; i < h.shpoly_dim1; ++i)
+  for (int i = 0; i < h0.shpoly.dim1; ++i)
   {
-    for (int j = 0; j < h.shpoly_dim2; ++j)
+    for (int j = 0; j < h0.shpoly.dim2; ++j)
     {
-      printf("%f, ", h.shpoly[i * h.shpoly_dim2 + j]);
+      printf("%f, ", h0.shpoly(i, j));
     }
     printf("\n");
   }
   printf("  rad: ");
-  for (int i = 0; i < h.rad_dim1; ++i)
+  for (int i = 0; i < h0.rad.dim1; ++i)
   {
-    printf("%f, ", h.rad[i]);
+    printf("%f, ", h0.rad[i]);
   }
   printf("\n");
   printf("  refocc: ");
-  for (int i = 0; i < h.refocc_dim1; ++i)
+  for (int i = 0; i < h0.refocc.dim1; ++i)
   {
-    for (int j = 0; j < h.refocc_dim2; ++j)
+    for (int j = 0; j < h0.refocc.dim2; ++j)
     {
-      printf("%f, ", h.refocc[i * h.refocc_dim2 + j]);
+      printf("%f, ", h0.refocc(i, j));
     }
     printf("\n");
   }
