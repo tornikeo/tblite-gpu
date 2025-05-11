@@ -23,66 +23,73 @@ typedef struct {
     const int nat;
     const int nid;
     const int nbd;
-    const int *id;  const int id_dim1;
-    const int *num; const int num_dim1;
-    const double *xyz; const int xyz_dim1; const int xyz_dim2;
+    // const int *id;  const int id_dim1;
+    const tensor1d_t<int> id; // 1D array of atom IDs
+    // const int *num; const int num_dim1;
+    const tensor1d_t<int> num; // 1D array of atom numbers
+    // const double *xyz; const int xyz_dim1; const int xyz_dim2;
+    const tensor2d_t<double> xyz; // 2D array of atom coordinates
     const int uhf;
     const double charge;
-    const double *lattice; const int lattice_dim1; const int lattice_dim2;
-    const int *periodic; const int periodic_dim1;
-    const int *bond; const int bond_dim1; const int bond_dim2;
+    // const double *lattice; const int lattice_dim1; const int lattice_dim2;
+    const tensor2d_t<double> lattice; // 2D array of lattice vectors
+    // const int *periodic; const int periodic_dim1;
+    const tensor1d_t<int> periodic; // 1D array of periodicity flags
+    // const int *bond; const int bond_dim1; const int bond_dim2;
+    const tensor2d_t<int> bond; // 2D array of bond information
 } structure_type;
 
-void printstruct(const structure_type str)
+__host__ __device__
+void printstruct(const structure_type &str)
 {
   printf("structure_type:\n");
   printf("  nat: %d\n", str.nat);
   printf("  nid: %d\n", str.nid);
   printf("  nbd: %d\n", str.nbd);
   printf("  id: ");
-  for (int i = 0; i < str.id_dim1; ++i)
+  for (int i = 0; i < str.id.dim1; ++i)
   {
     printf("%d, ", str.id[i]);
   }
   printf("\n");
   printf("  num: ");
-  for (int i = 0; i < str.num_dim1; ++i)
+  for (int i = 0; i < str.num.dim1; ++i)
   {
     printf("%d, ", str.num[i]);
   }
   printf("\n");
   printf("  xyz: ");
-  for (int i = 0; i < str.xyz_dim1; ++i)
+  for (int i = 0; i < str.xyz.dim1; ++i)
   {
-    for (int j = 0; j < str.xyz_dim2; ++j)
+    for (int j = 0; j < str.xyz.dim2; ++j)
     {
-      printf("%f, ", str.xyz[i * str.xyz_dim2 + j]);
+      printf("%f, ", str.xyz(i, j));
     }
     printf("\n");
   }
   printf("  uhf: %d\n", str.uhf);
   printf("  charge: %f\n", str.charge);
   printf("  lattice: ");
-  for (int i = 0; i < str.lattice_dim1; ++i)
+  for (int i = 0; i < str.lattice.dim1; ++i)
   {
-    for (int j = 0; j < str.lattice_dim2; ++j)
+    for (int j = 0; j < str.lattice.dim2; ++j)
     {
-      printf("%f, ", str.lattice[i * str.lattice_dim2 + j]);
+      printf("%f, ", str.lattice(i, j));
     }
     printf("\n");
   }
   printf("  periodic: ");
-  for (int i = 0; i < str.periodic_dim1; ++i)
+  for (int i = 0; i < str.periodic.dim1; ++i)
   {
     printf("%d, ", str.periodic[i]);
   }
   printf("\n");
   printf("  bond: ");
-  for (int i = 0; i < str.bond_dim1; ++i)
+  for (int i = 0; i < str.bond.dim1; ++i)
   {
-    for (int j = 0; j < str.bond_dim2; ++j)
+    for (int j = 0; j < str.bond.dim2; ++j)
     {
-      printf("%d, ", str.bond[i * str.bond_dim2 + j]);
+      printf("%d, ", str.bond(i, j));
     }
     printf("\n");
   }

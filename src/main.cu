@@ -325,12 +325,13 @@ extern "C"
   }
 }
 __global__ void get_hamiltonian(
-  // const structure_type *mol
+  const structure_type mol, 
   const adjacency_list alist
 )
 {
   printf("================= KERNEL =================\n");
   printstruct(alist);
+  printstruct(mol);
 }
 extern "C" void cuda_get_hamiltonian_kernel_(
     int nao,
@@ -408,14 +409,20 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       tensor1d_t(alist_nltr, alist_nltr_dim1)};
   const structure_type mol{
       mol_nat, mol_nid, mol_nbd,
-      mol_id, mol_id_dim1,
-      mol_num, mol_num_dim1,
-      mol_xyz, mol_xyz_dim1, mol_xyz_dim2,
+      // mol_id, mol_id_dim1,
+      tensor1d_t(mol_id, mol_id_dim1),
+      // mol_num, mol_num_dim1,
+      tensor1d_t(mol_num, mol_num_dim1),
+      // mol_xyz, mol_xyz_dim1, mol_xyz_dim2,
+      tensor2d_t(mol_xyz, mol_xyz_dim1, mol_xyz_dim2),
       mol_uhf,
       mol_charge,
-      mol_lattice, mol_lattice_dim1, mol_lattice_dim2,
-      mol_periodic, mol_periodic_dim1,
-      mol_bond, mol_bond_dim1, mol_bond_dim2};
+      // mol_lattice, mol_lattice_dim1, mol_lattice_dim2,
+      tensor2d_t(mol_lattice, mol_lattice_dim1, mol_lattice_dim2),
+      // mol_periodic, mol_periodic_dim1,
+      tensor1d_t(mol_periodic, mol_periodic_dim1),
+      // mol_bond, mol_bond_dim1, mol_bond_dim2};
+      tensor2d_t(mol_bond, mol_bond_dim1, mol_bond_dim2)};
   const tb_hamiltonian h0{
       h0_selfenergy, h0_selfenergy_dim1, h0_selfenergy_dim2,
       h0_kcn, h0_kcn_dim1, h0_kcn_dim2,
@@ -443,12 +450,25 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   printf("================= CUDA =================\n");
 
 
+  const structure_type d_mol{
+    mol.nat,
+    mol.nid,
+    mol.nbd,
+    mol.id.to_device(),
+    mol.num.to_device(),
+    mol.xyz.to_device(),
+    mol.uhf,
+    mol.charge,
+    mol.lattice.to_device(),
+    mol.periodic.to_device(),
+    mol.bond.to_device()};
+
   const adjacency_list d_alist{
     alist.inl.to_device(),
     alist.nnl.to_device(),
     alist.nlat.to_device(),
     alist.nltr.to_device()};
-
+    
   // Start timing
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
@@ -457,6 +477,8 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   
   // Launch kernel
   get_hamiltonian<<<1, 1>>>(
+    d_mol,
+    // d_trans,
     d_alist
   );
 
