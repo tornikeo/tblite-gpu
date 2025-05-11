@@ -1,10 +1,13 @@
+#ifndef TYPES_H
+#define TYPES_H
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <float.h> // For huge value if needed
-
+#include "tensor.h"
 #define MAXG 12 
 #define SYMBOL_LENGTH 10 // Replace with the actual value of symbol_length in Fortran
+
 /*    const int mol_nat,
     const int mol_nid,
     const int mol_nbd,
@@ -86,39 +89,36 @@ void printstruct(const structure_type str)
 }
 
 typedef struct {
-  const int *inl;  // Offset index in the neighbour map (dynamic array)
-  const int inl_dim1;
-  const int *nnl;  // Number of neighbours for each atom (dynamic array)
-  const int nnl_dim1;
-  const int *nlat; // Index of the neighbouring atom (dynamic array)
-  const int nlat_dim1;
-  const int *nltr; // Cell index of the neighbouring atom (dynamic array)
-  const int nltr_dim1;
+  const tensor1d_t<int> inl; // Offset index in the neighbour map (dynamic array)
+  const tensor1d_t<int> nnl; // Number of neighbours for each atom (dynamic array)
+  const tensor1d_t<int> nlat; // Index of the neighbouring atom (dynamic array)
+  const tensor1d_t<int> nltr; // Cell index of the neighbouring atom (dynamic array)
 } adjacency_list;
 
-void printstruct(const adjacency_list adj)
+__device__ __host__ 
+inline void printstruct(const adjacency_list &adj)
 {
   printf("adjacency_list:\n");
   printf("  inl: ");
-  for (int i = 0; i < adj.inl_dim1; ++i)
+  for (int i = 0; i < adj.inl.dim1; ++i)
   {
     printf("%d, ", adj.inl[i]);
   }
   printf("\n");
   printf("  nnl: ");
-  for (int i = 0; i < adj.nnl_dim1; ++i)
+  for (int i = 0; i < adj.nnl.dim1; ++i)
   {
     printf("%d, ", adj.nnl[i]);
   }
   printf("\n");
   printf("  nlat: ");
-  for (int i = 0; i < adj.nlat_dim1; ++i)
+  for (int i = 0; i < adj.nlat.dim1; ++i)
   {
     printf("%d, ", adj.nlat[i]);
   }
   printf("\n");
   printf("  nltr: ");
-  for (int i = 0; i < adj.nltr_dim1; ++i)
+  for (int i = 0; i < adj.nltr.dim1; ++i)
   {
     printf("%d, ", adj.nltr[i]);
   }
@@ -372,3 +372,5 @@ void printstruct(const tb_hamiltonian h)
     printf("\n");
   }
 }
+
+#endif

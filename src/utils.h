@@ -51,4 +51,69 @@ void printr(double (*arr)[N][M][O][P]) {
     }
 }
 
+template <typename T>
+inline void printr(int n, const T *arr)
+{
+  for (size_t i = 0; i < n; i++)
+  {
+    printf("%f, ", static_cast<double>(arr[i]));
+  }
+  printf("\n");
+}
+
+template <typename T>
+inline void printr(int n, int m, const T *arr)
+{
+  for (size_t i = 0; i < n; i++)
+  {
+    for (size_t j = 0; j < m; j++)
+    {
+      printf("%f, ", static_cast<double>(arr[i * m + j]));
+    }
+    printf("\n");
+  }
+  printf("\n");
+}
+
+template <typename T>
+inline void printr(int n, int m, int o, const T *arr)
+{
+  for (size_t i = 0; i < n; i++)
+  {
+    for (size_t j = 0; j < m; j++)
+    {
+      for (size_t k = 0; k < o; k++)
+      {
+        printf("%f, ", static_cast<double>(arr[i * m * o + j * o + k]));
+      }
+      printf("\n");
+    }
+    printf("\n");
+  }
+  printf("\n");
+}
+
+template <typename T>
+inline void printr(int n, int m, int o, int p, const T *arr)
+{
+  for (size_t i = 0; i < n; i++)
+  {
+    for (size_t j = 0; j < m; j++)
+    {
+      for (size_t k = 0; k < o; k++)
+      {
+        for (size_t l = 0; l < p; l++)
+        {
+          printf("%f, ", static_cast<double>(arr[i * n * m * o * p + j * o * p + k * p + l]));
+        }
+        printf("\n");
+      }
+      printf("\n");
+    }
+    printf("\n");
+  }
+  printf("\n");
+}
+
+
 #endif

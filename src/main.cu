@@ -277,74 +277,7 @@ __device__ void transform0(int lj, int li, const double *cart, double *sphr, int
   }
 }
 
-__global__ void get_hamiltonian()
-{
-  printf("Hello from inside the kernel\n");
-}
 
-template <typename T>
-void printr(int n, const T *arr)
-{
-  for (size_t i = 0; i < n; i++)
-  {
-    printf("%f, ", static_cast<double>(arr[i]));
-  }
-  printf("\n");
-}
-
-template <typename T>
-void printr(int n, int m, const T *arr)
-{
-  for (size_t i = 0; i < n; i++)
-  {
-    for (size_t j = 0; j < m; j++)
-    {
-      printf("%f, ", static_cast<double>(arr[i * m + j]));
-    }
-    printf("\n");
-  }
-  printf("\n");
-}
-
-template <typename T>
-void printr(int n, int m, int o, const T *arr)
-{
-  for (size_t i = 0; i < n; i++)
-  {
-    for (size_t j = 0; j < m; j++)
-    {
-      for (size_t k = 0; k < o; k++)
-      {
-        printf("%f, ", static_cast<double>(arr[i * m * o + j * o + k]));
-      }
-      printf("\n");
-    }
-    printf("\n");
-  }
-  printf("\n");
-}
-
-template <typename T>
-void printr(int n, int m, int o, int p, const T *arr)
-{
-  for (size_t i = 0; i < n; i++)
-  {
-    for (size_t j = 0; j < m; j++)
-    {
-      for (size_t k = 0; k < o; k++)
-      {
-        for (size_t l = 0; l < p; l++)
-        {
-          printf("%f, ", static_cast<double>(arr[i * n * m * o * p + j * o * p + k * p + l]));
-        }
-        printf("\n");
-      }
-      printf("\n");
-    }
-    printf("\n");
-  }
-  printf("\n");
-}
 
 extern "C"
 {
@@ -391,7 +324,14 @@ extern "C"
     cudaDeviceSynchronize(); // Wait for the kernel to finish.
   }
 }
-
+__global__ void get_hamiltonian(
+  // const structure_type *mol
+  const adjacency_list alist
+)
+{
+  printf("================= KERNEL =================\n");
+  printstruct(alist);
+}
 extern "C" void cuda_get_hamiltonian_kernel_(
     int nao,
     int nelem,
@@ -456,11 +396,16 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     double *hamiltonian)
 {
   /* Pack args into structures */
+  // const adjacency_list alist{
+  //     alist_inl, alist_inl_dim1,
+  //     alist_nnl, alist_nnl_dim1,
+  //     alist_nlat, alist_nlat_dim1,
+  //     alist_nltr, alist_nltr_dim1};
   const adjacency_list alist{
-      alist_inl, alist_inl_dim1,
-      alist_nnl, alist_nnl_dim1,
-      alist_nlat, alist_nlat_dim1,
-      alist_nltr, alist_nltr_dim1};
+      tensor1d_t(alist_inl, alist_inl_dim1),
+      tensor1d_t(alist_nnl, alist_nnl_dim1),
+      tensor1d_t(alist_nlat, alist_nlat_dim1),
+      tensor1d_t(alist_nltr, alist_nltr_dim1)};
   const structure_type mol{
       mol_nat, mol_nid, mol_nbd,
       mol_id, mol_id_dim1,
@@ -496,10 +441,49 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       bas_sh2at, bas_sh2at_dim1,
       cgto, cgto_dim1, cgto_dim2};
   printf("================= CUDA =================\n");
-  printf("at %s:%i\n", __func__, __LINE__);
-  printf("nao = %i\n", nao);
-  printf("nelem = %i\n", nelem);
-  printstruct(bas);
+
+
+  const adjacency_list d_alist{
+    alist.inl.to_device(),
+    alist.nnl.to_device(),
+    alist.nlat.to_device(),
+    alist.nltr.to_device()};
+
+  // Start timing
+  cudaEvent_t start, stop;
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
+  cudaEventRecord(start);
+  
+  // Launch kernel
+  get_hamiltonian<<<1, 1>>>(
+    d_alist
+  );
+
+  // Stop timing
+  cudaEventRecord(stop);
+  cudaEventSynchronize(stop);
+
+  // Check for errors
+  cudaError_t err = cudaGetLastError();
+  if (err != cudaSuccess) {
+    printf("CUDA Error: %s\n", cudaGetErrorString(err));
+    return;
+  }
+
+  // Calculate elapsed time
+  float milliseconds = 0;
+  cudaEventElapsedTime(&milliseconds, start, stop);
+  printf("Kernel execution time: %f ms\n", milliseconds);
+
+  // Clean up events
+  cudaEventDestroy(start);
+  cudaEventDestroy(stop);
+
+  // printf("at %s:%i\n", __func__, __LINE__);
+  // printf("nao = %i\n", nao);
+  // printf("nelem = %i\n", nelem);
+  // printstruct(bas);
   // printstruct(alist);
   // printstruct(mol);
   // printstruct(h0);
