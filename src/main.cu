@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <math.h>
 #include "utils.h"
+#include "device_tensor.h"
 #include "types.h"
 
 __device__ __constant__ double s3;
@@ -347,36 +348,117 @@ __global__ void get_hamiltonian(
   tensor2d_t<double> hamiltonian) 
 {
   printf("================= KERNEL =================\n");
-  printf("mol = \n");
-  printstruct(mol);
+  // printf("mol = \n");
+  // printstruct(mol);
 
-  printf("trans = \n");
-  trans.print();
+  // printf("trans = \n");
+  // trans.print();
 
-  printf("alist = \n");
-  printstruct(alist);
+  // printf("alist = \n");
+  // printstruct(alist);
 
-  printf("bas = \n");
-  printstruct(bas);
+  // printf("bas = \n");
+  // printstruct(bas);
 
-  printf("h0 = \n");
-  printstruct(h0);
+  // printf("h0 = \n");
+  // printstruct(h0);
 
-  printf("selfenergy = \n");
-  selfenergy.print();
+  // printf("selfenergy = \n");
+  // selfenergy.print();
 
-  printf("overlap = \n");
-  overlap.print();
+  // printf("overlap = \n");
+  // overlap.print();
 
-  printf("dpint = \n");
-  dpint.print();
+  // printf("dpint = \n");
+  // dpint.print();
 
-  printf("qpint = \n");
-  qpint.print();
+  // printf("qpint = \n");
+  // qpint.print();
 
-  printf("hamiltonian = \n");
-  hamiltonian.print();
+  // printf("hamiltonian = \n");
+  // hamiltonian.print();
+
+  /*
+  
+      integer :: i,j,l;
+      integer :: iat, jat, izp, jzp, itr, k, img, inl
+      integer :: ish, jsh, is, js, ii, jj, iao, jao, nao, ij
+      real(wp) :: rr, r2, vec(3), cutoff2, hij, shpoly, dtmpj(3), qtmpj(6)
+      real(wp), allocatable :: stmp(:), dtmpi(:, :), qtmpi(:, :)
+
+      overlap(:, :) = 0.0_wp
+      dpint(:, :, :) = 0.0_wp
+      qpint(:, :, :) = 0.0_wp
+      hamiltonian(:, :) = 0.0_wp
+
+      allocate(stmp(msao(bas%maxl)**2), dtmpi(3, msao(bas%maxl)**2), qtmpi(6, msao(bas%maxl)**2))
+ 
+      !$omp parallel do schedule(runtime) default(none) &
+      !$omp shared(mol, bas, trans, alist, overlap, dpint, qpint, hamiltonian, h0, selfenergy) &
+      !$omp private(iat, jat, izp, jzp, itr, is, js, ish, jsh, ii, jj, iao, jao, nao, ij, k) &
+      !$omp private(r2, vec, stmp, dtmpi, qtmpi, dtmpj, qtmpj, hij, shpoly, rr, inl, img)
+      do iat = 1, mol%nat
+         izp = mol%id(iat)
+         is = bas%ish_at(iat)
+         inl = alist%inl(iat)
+         do img = 1, alist%nnl(iat)
+            jat = alist%nlat(img+inl)
+            itr = alist%nltr(img+inl)
+            jzp = mol%id(jat)
+            js = bas%ish_at(jat)
+            vec(:) = mol%xyz(:, iat) - mol%xyz(:, jat) - trans(:, itr)
+            r2 = vec(1)**2 + vec(2)**2 + vec(3)**2
+            rr = sqrt(sqrt(r2) / (h0%rad(jzp) + h0%rad(izp)))
+            do ish = 1, bas%nsh_id(izp)
+               ii = bas%iao_sh(is+ish)
+               do jsh = 1, bas%nsh_id(jzp)
+                  jj = bas%iao_sh(js+jsh)
+  */
+  // constants 
+  // integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
+  constexpr int msao[7] = {1, 3, 5, 7, 9, 11, 13};
+
+  // locals
+  int i, j, l;
+  int iat, jat, izp, jzp, itr, k, img, inl;
+  int ish, jsh, is, js, ii, jj, iao, jao, nao, ij;
+  double rr, r2, vec[3], cutoff2, hij, shpoly, dtmpj[3], qtmpj[6];
+
+  // clean overlap, dpint, qpint, hamiltonian
+  overlap.fill(0.0);
+  dpint.fill(0.0);
+  qpint.fill(0.0);
+  hamiltonian.fill(0.0);
+
+  // allocate stmp, dtmpi, qtmpi
+  // double *stmp_ptr = (double *)xmalloc(msao[bas.maxl] * msao[bas.maxl] * sizeof(double));
+  // double *dtmpi_ptr = (double *)xmalloc(3 * msao[bas.maxl] * msao[bas.maxl] * sizeof(double));
+  // double *qtmpi_ptr = (double *)xmalloc(6 * msao[bas.maxl] * msao[bas.maxl] * sizeof(double));
+
+  device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]);
+  device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3);
+  device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6);
+
+  stmp.fill(1.0);
+  dtmpi.fill(2.0);
+  qtmpi.fill(3.0);
+
+  // Assert device tensor works
+  printf("stmp = \n");
+  stmp.print();
+
+  printf("dtmpi = \n");
+  dtmpi.print();
+
+  printf("qtmpi = \n");
+  qtmpi.print();
+
+  // free allocations
+  // free(stmp_ptr);
+  // free(dtmpi_ptr);
+  // free(qtmpi_ptr);
 }
+
 extern "C" void cuda_get_hamiltonian_kernel_(
     int nao,
     int nelem,
@@ -584,6 +666,10 @@ extern "C" void cuda_get_hamiltonian_kernel_(
 
   // Start timing
   cudaEvent_t start, stop;
+
+  // We need to set heap size for CUDA, to use malloc inside kernel
+  CUDA_CHECK( cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1*1024*1024); );
+
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
   cudaEventRecord(start);
@@ -601,7 +687,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     d_qpint,
     d_hamiltonian
   );
-
+  
   // Stop timing
   cudaEventRecord(stop);
   cudaEventSynchronize(stop);

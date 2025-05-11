@@ -1,5 +1,19 @@
 #ifndef UTILS_H
 #define UTILS_H
+#include <cassert>
+#include <stdio.h>
+#include <cuda_runtime.h>
+#include <stdlib.h>
+
+
+#define CUDA_CHECK(call) { \
+    cudaError_t err = call; \
+    if (err != cudaSuccess) { \
+        fprintf(stderr, "CUDA error in %s:%d: %s\n", __FILE__, __LINE__, cudaGetErrorString(err)); \
+        exit(EXIT_FAILURE); \
+    } \
+}
+
 // Base template for 1D arrays
 template <size_t N>
 void printr(double (*arr)[N]) {
@@ -115,5 +129,12 @@ inline void printr(int n, int m, int o, int p, const T *arr)
   printf("\n");
 }
 
+
+__host__ __device__ inline void * xmalloc(size_t size)
+{
+  void *ptr = malloc(size);
+  assert(ptr != nullptr && "Memory allocation failed");
+  return ptr;
+}
 
 #endif

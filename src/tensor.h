@@ -6,8 +6,10 @@
 #include <stdio.h>
 #include <cassert>
 #include <cuda_runtime.h>
+#include "utils.h"
 
-/* 1D tensor class */ template <typename T>
+/* 1D tensor class */ 
+template <typename T>
 class tensor1d_t
 {
 public:
@@ -25,7 +27,8 @@ public:
       this->data[i] = data[i];
     }
   }
-
+  
+  __host__ __device__
   ~tensor1d_t()
   {
     if (is_device)
@@ -102,6 +105,14 @@ public:
     return data[i];
   }
 
+  __host__ __device__ inline void fill(const T &value)
+  {
+    for (int i = 0; i < dim1; ++i)
+    {
+      data[i] = value;
+    }
+  }
+
   // to_device function
   tensor1d_t<T> to_device() const
   {
@@ -124,8 +135,7 @@ public:
     return host_tensor;
   }
 
-  __host__ __device__ 
-  inline void print() const
+  __host__ __device__ inline void print() const
   {
     printf("(%i)\n", dim1);
     printf("[");
@@ -182,6 +192,15 @@ public:
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2);
     return data[i * dim2 + j];
+  }
+
+  __host__ __device__ inline void fill(const T &value)
+  {
+    const int size = dim1 * dim2;
+    for (int i = 0; i < size; ++i)
+    {
+      data[i] = value;
+    }
   }
 
   tensor2d_t(const tensor2d_t &other)
@@ -262,8 +281,7 @@ public:
     return host_tensor;
   }
 
-  __host__ __device__
-  inline void print() const
+  __host__ __device__ inline void print() const
   {
     printf("(%i, %i)\n", dim1, dim2);
     printf("[");
@@ -279,7 +297,6 @@ public:
     printf("]\n");
   }
 };
-
 
 /* 3D tensor class */
 template <typename T>
@@ -327,6 +344,15 @@ public:
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3);
     return data[i * dim2 * dim3 + j * dim3 + k];
+  }
+
+  __host__ __device__ inline void fill(const T &value)
+  {
+    const int size = dim1 * dim2 * dim3;
+    for (int i = 0; i < size; ++i)
+    {
+      data[i] = value;
+    }
   }
 
   tensor3d_t(const tensor3d_t &other)
@@ -408,8 +434,7 @@ public:
     return host_tensor;
   }
 
-  __host__ __device__
-  inline void print() const
+  __host__ __device__ inline void print() const
   {
     printf("(%i, %i, %i)\n", dim1, dim2, dim3);
     printf("[");
@@ -430,7 +455,6 @@ public:
     printf("]\n");
   }
 };
-
 
 /* 4D tensor class */
 template <typename T>
@@ -461,12 +485,22 @@ public:
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3 && l >= 0 && l < dim4);
     return data[i * dim2 * dim3 * dim4 + j * dim3 * dim4 + k * dim4 + l];
   }
+  
   __device__ __host__ inline const T &operator()(int i, int j, int k, int l) const
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3 && l >= 0 && l < dim4);
     return data[i * dim2 * dim3 * dim4 + j * dim3 * dim4 + k * dim4 + l];
   }
-  
+
+  __host__ __device__ inline void fill(const T &value)
+  {
+    const int size = dim1 * dim2 * dim3 * dim4;
+    for (int i = 0; i < size; ++i)
+    {
+      data[i] = value;
+    }
+  }
+
   tensor4d_t(const tensor4d_t &other)
   {
     this->dim1 = other.dim1;
@@ -536,7 +570,6 @@ public:
     }
     return *this;
   }
-  // to_device function
   tensor4d_t<T> to_device() const
   {
     tensor4d_t<T> device_tensor;
@@ -549,7 +582,6 @@ public:
     cudaMemcpy(device_tensor.data, this->data, dim1 * dim2 * dim3 * dim4 * sizeof(T), cudaMemcpyHostToDevice);
     return device_tensor;
   }
-  // to_host function
   tensor4d_t<T> to_host() const
   {
     tensor4d_t<T> host_tensor;
@@ -563,8 +595,7 @@ public:
     return host_tensor;
   }
 
-  __host__ __device__
-  inline void print() const
+  __host__ __device__ inline void print() const
   {
     printf("(%i, %i, %i, %i) ", dim1, dim2, dim3, dim4);
     printf("[");

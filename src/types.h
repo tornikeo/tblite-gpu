@@ -186,11 +186,11 @@ typedef struct {
         integer(c_int), value :: bas_sh2at_dim1
         type(cgto_type), intent(in) :: cgto(*)
         integer(c_int), value :: cgto_dim1, cgto_dim2*/
-  const int bas_maxl;
-  const int bas_nsh;
-  const int bas_nao;
-  const double bas_intcut;
-  const double bas_min_alpha;
+  const int maxl;
+  const int nsh;
+  const int nao;
+  const double intcut;
+  const double min_alpha;
   // const int *nsh_id; const int nsh_id_dim1;
   const tensor1d_t<int> nsh_id; // 1D array of shell IDs
   // const int *nsh_at; const int nsh_at_dim1;
@@ -215,11 +215,11 @@ __host__ __device__
 void printstruct(const basis_type &bas)
 {
   printf("basis_type:\n");
-  printf("  bas_maxl: %d\n", bas.bas_maxl);
-  printf("  bas_nsh: %d\n", bas.bas_nsh);
-  printf("  bas_nao: %d\n", bas.bas_nao);
-  printf("  bas_intcut: %f\n", bas.bas_intcut);
-  printf("  bas_min_alpha: %f\n", bas.bas_min_alpha);
+  printf("  maxl: %d\n", bas.maxl);
+  printf("  nsh: %d\n", bas.nsh);
+  printf("  nao: %d\n", bas.nao);
+  printf("  intcut: %f\n", bas.intcut);
+  printf("  min_alpha: %f\n", bas.min_alpha);
   printf("  nsh_id: ");
   for (int i = 0; i < bas.nsh_id.dim1; ++i)
   {
