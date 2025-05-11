@@ -326,12 +326,30 @@ extern "C"
 }
 __global__ void get_hamiltonian(
   const structure_type mol, 
-  const adjacency_list alist
+  const tensor2d_t<double> trans,
+  const adjacency_list alist,
+  const basis_type bas
 )
 {
   printf("================= KERNEL =================\n");
-  printstruct(alist);
+  printf("mol = \n");
   printstruct(mol);
+
+  printf("trans = \n");
+  for(int i = 0; i < trans.dim1; ++i)
+  {
+    for(int j = 0; j < trans.dim2; ++j)
+    {
+      printf("%f ", trans(i,j));
+    }
+  }
+  printf("\n");
+
+  printf("alist = \n");
+  printstruct(alist);
+
+  printf("bas = \n");
+  printstruct(bas);
 }
 extern "C" void cuda_get_hamiltonian_kernel_(
     int nao,
@@ -397,32 +415,23 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     double *hamiltonian)
 {
   /* Pack args into structures */
-  // const adjacency_list alist{
-  //     alist_inl, alist_inl_dim1,
-  //     alist_nnl, alist_nnl_dim1,
-  //     alist_nlat, alist_nlat_dim1,
-  //     alist_nltr, alist_nltr_dim1};
   const adjacency_list alist{
       tensor1d_t(alist_inl, alist_inl_dim1),
       tensor1d_t(alist_nnl, alist_nnl_dim1),
       tensor1d_t(alist_nlat, alist_nlat_dim1),
       tensor1d_t(alist_nltr, alist_nltr_dim1)};
+
   const structure_type mol{
       mol_nat, mol_nid, mol_nbd,
-      // mol_id, mol_id_dim1,
       tensor1d_t(mol_id, mol_id_dim1),
-      // mol_num, mol_num_dim1,
       tensor1d_t(mol_num, mol_num_dim1),
-      // mol_xyz, mol_xyz_dim1, mol_xyz_dim2,
       tensor2d_t(mol_xyz, mol_xyz_dim1, mol_xyz_dim2),
       mol_uhf,
       mol_charge,
-      // mol_lattice, mol_lattice_dim1, mol_lattice_dim2,
       tensor2d_t(mol_lattice, mol_lattice_dim1, mol_lattice_dim2),
-      // mol_periodic, mol_periodic_dim1,
       tensor1d_t(mol_periodic, mol_periodic_dim1),
-      // mol_bond, mol_bond_dim1, mol_bond_dim2};
       tensor2d_t(mol_bond, mol_bond_dim1, mol_bond_dim2)};
+
   const tb_hamiltonian h0{
       h0_selfenergy, h0_selfenergy_dim1, h0_selfenergy_dim2,
       h0_kcn, h0_kcn_dim1, h0_kcn_dim2,
@@ -438,15 +447,24 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       bas_nao,
       bas_intcut,
       bas_min_alpha,
-      bas_nsh_id, bas_nsh_id_dim1,
-      bas_nsh_at, bas_nsh_at_dim1,
-      bas_nao_sh, bas_nao_sh_dim1,
-      bas_iao_sh, bas_iao_sh_dim1,
-      bas_ish_at, bas_ish_at_dim1,
-      bas_ao2at, bas_ao2at_dim1,
-      bas_ao2sh, bas_ao2sh_dim1,
-      bas_sh2at, bas_sh2at_dim1,
-      cgto, cgto_dim1, cgto_dim2};
+      // bas_nsh_id, bas_nsh_id_dim1,
+      tensor1d_t(bas_nsh_id, bas_nsh_id_dim1),
+      // bas_nsh_at, bas_nsh_at_dim1,
+      tensor1d_t(bas_nsh_at, bas_nsh_at_dim1),
+      // bas_nao_sh, bas_nao_sh_dim1,
+      tensor1d_t(bas_nao_sh, bas_nao_sh_dim1),
+      // bas_iao_sh, bas_iao_sh_dim1,
+      tensor1d_t(bas_iao_sh, bas_iao_sh_dim1),
+      // bas_ish_at, bas_ish_at_dim1,
+      tensor1d_t(bas_ish_at, bas_ish_at_dim1),
+      // bas_ao2at, bas_ao2at_dim1,
+      tensor1d_t(bas_ao2at, bas_ao2at_dim1),
+      // bas_ao2sh, bas_ao2sh_dim1,
+      tensor1d_t(bas_ao2sh, bas_ao2sh_dim1),
+      // bas_sh2at, bas_sh2at_dim1,
+      tensor1d_t(bas_sh2at, bas_sh2at_dim1),
+      // cgto, cgto_dim1, cgto_dim2};
+      tensor2d_t(cgto, cgto_dim1, cgto_dim2)};
   printf("================= CUDA =================\n");
 
 
@@ -463,12 +481,40 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     mol.periodic.to_device(),
     mol.bond.to_device()};
 
+  const tensor2d_t<double> d_trans = tensor2d_t<double>(trans, trans_dim1, trans_dim2).to_device();
+
   const adjacency_list d_alist{
     alist.inl.to_device(),
     alist.nnl.to_device(),
     alist.nlat.to_device(),
     alist.nltr.to_device()};
-    
+
+  const basis_type d_basis{
+    bas_maxl,
+    bas_nsh,
+    bas_nao,
+    bas_intcut,
+    bas_min_alpha,
+    // tensor1d_t(bas.nsh_id, bas.nsh_id_dim1).to_device(),
+    bas.nsh_id.to_device(),
+    // tensor1d_t(bas.nsh_at, bas.nsh_at_dim1).to_device(),
+    bas.nsh_at.to_device(),
+    // tensor1d_t(bas.nao_sh, bas.nao_sh_dim1).to_device(),
+    bas.nao_sh.to_device(),
+    // tensor1d_t(bas.iao_sh, bas.iao_sh_dim1).to_device(),
+    bas.iao_sh.to_device(),
+    // tensor1d_t(bas.ish_at, bas.ish_at_dim1).to_device(),
+    bas.ish_at.to_device(),
+    // tensor1d_t(bas.ao2at, bas.ao2at_dim1).to_device(),
+    bas.ao2at.to_device(),
+    // tensor1d_t(bas.ao2sh, bas.ao2sh_dim1).to_device(),
+    bas.ao2sh.to_device(),
+    // tensor1d_t(bas.sh2at, bas.sh2at_dim1).to_device(),
+    bas.sh2at.to_device(),
+    // cgto, cgto_dim1, cgto_dim2};
+    // tensor2d_t<cgto_type>(bas.cgto, bas.cgto_dim1, bas.cgto_dim2).to_device()};
+    bas.cgto.to_device()};
+
   // Start timing
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
@@ -478,8 +524,9 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   // Launch kernel
   get_hamiltonian<<<1, 1>>>(
     d_mol,
-    // d_trans,
-    d_alist
+    d_trans,
+    d_alist,
+    d_basis
   );
 
   // Stop timing

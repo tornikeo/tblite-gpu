@@ -190,18 +190,28 @@ typedef struct {
   const int bas_nao;
   const double bas_intcut;
   const double bas_min_alpha;
-  const int *nsh_id; const int nsh_id_dim1;
-  const int *nsh_at; const int nsh_at_dim1;
-  const int *nao_sh; const int nao_sh_dim1;
-  const int *iao_sh; const int iao_sh_dim1;
-  const int *ish_at; const int ish_at_dim1;
-  const int *ao2at; const int ao2at_dim1;
-  const int *ao2sh; const int ao2sh_dim1;
-  const int *sh2at; const int sh2at_dim1;
-  const cgto_type *cgto; const int cgto_dim1; const int cgto_dim2;
+  // const int *nsh_id; const int nsh_id_dim1;
+  const tensor1d_t<int> nsh_id; // 1D array of shell IDs
+  // const int *nsh_at; const int nsh_at_dim1;
+  const tensor1d_t<int> nsh_at; // 1D array of atom IDs for each shell
+  // const int *nao_sh; const int nao_sh_dim1;
+  const tensor1d_t<int> nao_sh; // 1D array of shell indices for each AO
+  // const int *iao_sh; const int iao_sh_dim1;
+  const tensor1d_t<int> iao_sh; // 1D array of shell indices for each AO
+  // const int *ish_at; const int ish_at_dim1;
+  const tensor1d_t<int> ish_at; // 1D array of atom indices for each shell
+  // const int *ao2at; const int ao2at_dim1;
+  const tensor1d_t<int> ao2at; // 1D array of atom IDs for each AO
+  // const int *ao2sh; const int ao2sh_dim1;
+  const tensor1d_t<int> ao2sh; // 1D array of shell indices for each AO
+  // const int *sh2at; const int sh2at_dim1;
+  const tensor1d_t<int> sh2at; // 1D array of atom IDs for each shell
+  // const cgto_type *cgto; const int cgto_dim1; const int cgto_dim2;
+  const tensor2d_t<cgto_type> cgto; // 2D array of Gaussian-type orbitals
 } basis_type;
 
-void printstruct(const basis_type bas)
+__host__ __device__
+void printstruct(const basis_type &bas)
 {
   printf("basis_type:\n");
   printf("  bas_maxl: %d\n", bas.bas_maxl);
@@ -210,64 +220,64 @@ void printstruct(const basis_type bas)
   printf("  bas_intcut: %f\n", bas.bas_intcut);
   printf("  bas_min_alpha: %f\n", bas.bas_min_alpha);
   printf("  nsh_id: ");
-  for (int i = 0; i < bas.nsh_id_dim1; ++i)
+  for (int i = 0; i < bas.nsh_id.dim1; ++i)
   {
     printf("%d, ", bas.nsh_id[i]);
   }
   printf("\n");
   printf("  nsh_at: ");
-  for (int i = 0; i < bas.nsh_at_dim1; ++i)
+  for (int i = 0; i < bas.nsh_at.dim1; ++i)
   {
     printf("%d, ", bas.nsh_at[i]);
   }
   printf("\n");
   printf("  nao_sh: ");
-  for (int i = 0; i < bas.nao_sh_dim1; ++i)
+  for (int i = 0; i < bas.nao_sh.dim1; ++i)
   {
     printf("%d, ", bas.nao_sh[i]);
   }
   printf("\n");
   printf("  iao_sh: ");
-  for (int i = 0; i < bas.iao_sh_dim1; ++i)
+  for (int i = 0; i < bas.iao_sh.dim1; ++i)
   {
     printf("%d, ", bas.iao_sh[i]);
   }
   printf("\n");
   printf("  ish_at: ");
-  for (int i = 0; i < bas.ish_at_dim1; ++i)
+  for (int i = 0; i < bas.ish_at.dim1; ++i)
   {
     printf("%d, ", bas.ish_at[i]);
   }
   printf("\n");
   printf("  ao2at: ");
-  for (int i = 0; i < bas.ao2at_dim1; ++i)
+  for (int i = 0; i < bas.ao2at.dim1; ++i)
   {
     printf("%d, ", bas.ao2at[i]);
   }
   printf("\n");
   printf("  ao2sh: ");
-  for (int i = 0; i < bas.ao2sh_dim1; ++i)
+  for (int i = 0; i < bas.ao2sh.dim1; ++i)
   {
     printf("%d, ", bas.ao2sh[i]);
   }
   printf("\n");
   printf("  sh2at: ");
-  for (int i = 0; i < bas.sh2at_dim1; ++i)
+  for (int i = 0; i < bas.sh2at.dim1; ++i)
   {
     printf("%d, ", bas.sh2at[i]);
   }
   printf("\n");
   printf("  cgto: ");
   // DEBUG
-  printf("cgto dims are %d, %d\n", bas.cgto_dim1 + 1, bas.cgto_dim2 + 1);
-  for(int i = 0; i < bas.cgto_dim1; ++i)
-  {
-    for (int j = 0; j < bas.cgto_dim2; ++j)
-    {
-      printf("cgto[%d][%d] = \n", i, j);
-      printstruct(bas.cgto[i * bas.cgto_dim2 + j]);
-    }
-  }
+  // printf("cgto dims are %d, %d\n", bas.cgto.dim1 + 1, bas.cgto.dim2 + 1);
+  // for(int i = 0; i < bas.cgto.dim1; ++i)
+  // {
+  //   for (int j = 0; j < bas.cgto.dim2; ++j)
+  //   {
+  //     printf("cgto[%d][%d] = \n", i, j);
+  //     printstruct(bas.cgto(i,j));
+  //   }
+  // }
 }
 
 // Hamiltonian interaction data structure
