@@ -486,8 +486,8 @@ __device__ void multipole_cgto(
   const cgto_type &cgtoj,
   const cgto_type &cgtoi,
   const double r2,
-  const double *vec,
-  double intcut,
+  const double (&vec)[3],
+  const double intcut,
   device_tensor2d_t<double> &overlap,
   device_tensor3d_t<double> &dpint,
   device_tensor3d_t<double> &qpint)
@@ -831,16 +831,18 @@ __global__ void get_hamiltonian(
   device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6);
   qtmpi.fill(0.0);
 
-  // stmp.fill(1.0);
-  // dtmpi.fill(2.0);
-  // qtmpi.fill(3.0);
-  // // Assert device tensor works
-  // printf("stmp = \n");
-  // stmp.print();
-  // printf("dtmpi = \n");
-  // dtmpi.print();
-  // printf("qtmpi = \n");
-  // qtmpi.print();
+  {
+    // stmp.fill(1.0);
+    // dtmpi.fill(2.0);
+    // qtmpi.fill(3.0);
+    // // Assert device tensor works
+    // printf("stmp = \n");
+    // stmp.print();
+    // printf("dtmpi = \n");
+    // dtmpi.print();
+    // printf("qtmpi = \n");
+    // qtmpi.print();
+  }
   /*do iat = 1, mol%nat
       izp = mol%id(iat)
       is = bas%ish_at(iat)
@@ -897,8 +899,9 @@ __global__ void get_hamiltonian(
         nao = msao(bas%cgto(jsh, jzp)%ang)*/
         const auto &cgtoj = bas.cgto(jsh, jzp); /* TODO: aren't these swapped? */
         const auto &cgtoi = bas.cgto(ish, izp);
+        multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
         // Debug
-        // {
+        {
         //   printf("==================== DEBUG ====================\n");
         //   printf("cgtoj = bas.cgto(%i, %i)\n", jsh, jzp);
         //   printf("cgtoj = \n");
@@ -914,9 +917,9 @@ __global__ void get_hamiltonian(
         //   printf("qtmpi = \n");
         //   qtmpi.print();
         //   printf("===================== DEBUG ====================\n");
-        // }
         // if (printcounter++ > 5) return;
         // assert(false);
+        }
         shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
                  (1.0 + h0.shpoly(jzp, jsh) * rr);
         hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
@@ -940,8 +943,22 @@ __global__ void get_hamiltonian(
             // qtmpj.print();
             /* TODO: Implement slicing {}*/
             shift_operator(iao, jao, vec, stmp, dtmpi, qtmpi, dtmpj, qtmpj); 
-            /*                        overlap(jj+jao, ii+iao) = overlap(jj+jao, ii+iao) &
+            /*overlap(jj+jao, ii+iao) = overlap(jj+jao, ii+iao) &
                            + stmp(ij)*/
+
+            if (threadIdx.x == 1)
+            {
+              // printf("stmp = \n");
+              // stmp.print();
+              // printf("dtmpi = \n");
+              // dtmpi.print();
+              // printf("qtmpi = \n");
+              // qtmpi.print();
+              // printf("dtmpj = \n");
+              printf("before iat != jat; iat = %i, jat = %i; stmp = \n", iat, jat);
+              stmp.print();
+              printf("also, ii + iao = %d, jj + jao = %d, iao = %d, jao = %d\n", ii + iao, jj + jao, iao, jao);
+            }
             atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
             /*do k = 1, 3
                            ! $omp atomic
@@ -961,26 +978,34 @@ __global__ void get_hamiltonian(
                         hamiltonian(jj+jao, ii+iao) = hamiltonian(jj+jao, ii+iao) &
                            + stmp(ij) * hij*/
             atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
-
-            if (iat != jat)
+            
+            /* TODO: This is a symmetrification of these matrices. Maybe this should be
+            done in the outside this loop? */
+            if (iat != jat) 
             {
               /*overlap(ii+iao, jj+jao) = overlap(ii+iao, jj+jao) + stmp(ij)*/
-              atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
+              if (threadIdx.x == 1)
+              {
+                printf("inside iat != jat (%i != %i); stmp = \n", iat, jat);
+                stmp.print();
+                printf("also, ii + iao = %d, jj + jao = %d, iao = %d, jao = %d\n", ii + iao, jj + jao, iao, jao);
+              }
+              atomicAdd(&overlap(jj + jao, ii + iao), stmp(iao, jao));
               /*do k = 1, 3
                               ! $omp atomic
                               dpint(k, ii+iao, jj+jao) = dpint(k, ii+iao, jj+jao) &
                                  + dtmpj(k)
                            end do*/
               for (int k = 0; k < 3; ++k)
-                atomicAdd(&dpint(jj + jao, ii + iao, k), dtmpj[k]);
+                atomicAdd(&dpint(jj + jao, ii + iao,  k), dtmpj[k]);
               /*do k = 1, 6
                               ! $omp atomic
                               qpint(k, ii+iao, jj+jao) = qpint(k, ii+iao, jj+jao) &
                                  + qtmpj(k)
                            end do*/
               for (int k = 0; k < 6; ++k)
-                atomicAdd(&qpint(jj + jao, ii + iao, k), qtmpj[k]);
-              /*                        ! $omp atomic
+                atomicAdd(&qpint(jj + jao, ii + iao,  k), qtmpj[k]);
+              /*! $omp atomic
                            hamiltonian(ii+iao, jj+jao) = hamiltonian(ii+iao, jj+jao) &
                               + stmp(ij) * hij*/
               atomicAdd(&hamiltonian(jj + jao, ii + iao), stmp(iao, jao) * hij);
@@ -990,7 +1015,7 @@ __global__ void get_hamiltonian(
       }
     }
   }
-
+  if(threadIdx.x == 1)
   {
     printf("================== DEBUG %i %i ==================\n", blockIdx.x, threadIdx.x);
     printf("overlap = \n");
