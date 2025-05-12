@@ -6,7 +6,8 @@
 #include <float.h> // For huge value if needed
 #include "tensor.h"
 
-#define MAXG 12 
+#define MAXG 12
+#define MAXL 6
 #define MAXL2 12
 #define SYMBOL_LENGTH 10 // Replace with the actual value of symbol_length in Fortran
 

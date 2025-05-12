@@ -7,24 +7,9 @@
 #include "device_tensor.h"
 #include "types.h"
 
-__global__ void hello_kernel()
-{
-  printf("%i %i Says Hello!", blockIdx.x, threadIdx.x);
-}
-
-// Kernel to test the constants
-__global__ void testKernel()
-{
-  // printf("s3: %f, s3_4: %f, dtrafo[0][2]: %f, ftrafo[0][4]: %f, gtrafo[0][4]: %f\n",
-  //        s3, s3_4, dtrafo[0][2], ftrafo[0][4], gtrafo[0][4]);
-}
-
-
-// Assuming constants like s3, s3_4, dtrafo, ftrafo, and gtrafo are already defined as __device__ __constant__
 
 template <typename T>
-__device__ inline void transform0(int lj, int li, 
-  const device_tensor2d_t<T> &cart, device_tensor2d_t<T> &sphr)
+__device__ inline void transform0(int lj, int li, const device_tensor2d_t<T> &cart, device_tensor2d_t<T> &sphr)
 {
   constexpr T s3 = 1.7320508075688772; // sqrt(3)
   constexpr T s3_4 = 0.6123724356957945; // sqrt(3)/2
@@ -47,160 +32,318 @@ __device__ inline void transform0(int lj, int li,
       break;
     case 2:
       // sphr = matmul(dtrafo, cart)
-      sphr(0, 0) = cart(2, 0) - 0.5 * (cart(0, 0) + cart(1, 0));
-      sphr(1, 0) = s3 * cart(4, 0);
-      sphr(2, 0) = s3 * cart(5, 0);
-      sphr(3, 0) = s3_4 * (cart(0, 0) - cart(1, 0));
-      sphr(4, 0) = s3 * cart(3, 0);
+      for(int i = 0; i < cart.dim1; ++i)
+      {
+        sphr(i, 0) = cart(i, 2) - 0.5 * (cart(i, 0) + cart(i, 1));
+        sphr(i, 1) = s3 * cart(i, 4);
+        sphr(i, 2) = s3 * cart(i, 5);
+        sphr(i, 3) = s3_4 * (cart(i, 0) - cart(i, 1));
+        sphr(i, 4) = s3 * cart(i, 3);
+      }
       break;
     
     default:
       printf("[Fatal] moment li=%i lj=%i not supported\n", li, lj);
-      assert(false)
+      assert(false);
       return;
     }
+    break;
+  default:
+    printf("[Fatal] transform0 not supported for li=%d lj=%d\n", li, lj);
+    assert(false);
+    return;
   }
-  //   case 3:
-  //     // sphr = matmul(ftrafo, cart)
-  //     for (int i = 0; i < 7; ++i)
-  //     {
-  //       sphr(i, 0) = 0.0;
-  //       for (int j = 0; j < 10; ++j)
-  //       {
-  //         sphr(i, 0) += ftrafo[i][j] * cart[j];
-  //       }
-  //     }
-  //     break;
-  //   case 4:
-  //     // sphr = matmul(gtrafo, cart)
-  //     for (int i = 0; i < 9; ++i)
-  //     {
-  //       sphr[i] = 0.0;
-  //       for (int j = 0; j < 15; ++j)
-  //       {
-  //         sphr[i] += gtrafo[i][j] * cart[j];
-  //       }
-  //     }
-  //     break;
-  //   default:
-  //     printf("[Fatal] Moments higher than g are not supported\n");
-  //     return;
-  //   }
-  //   break;
+  /* TODO: Support the rest of the transform cases*/
+}
 
-  // case 2:
-  //   switch (lj)
-  //   {
-  //   case 0:
-  //   case 1:
-  //     // sphr = matmul(cart, transpose(dtrafo))
-  //     for (int i = 0; i < cart_rows; ++i)
-  //     {
-  //       sphr[i * 5 + 0] = cart[i * 6 + 2] - 0.5 * (cart[i * 6 + 0] + cart[i * 6 + 1]);
-  //       sphr[i * 5 + 1] = s3 * cart[i * 6 + 4];
-  //       sphr[i * 5 + 2] = s3 * cart[i * 6 + 5];
-  //       sphr[i * 5 + 3] = s3_4 * (cart[i * 6 + 0] - cart[i * 6 + 1]);
-  //       sphr[i * 5 + 4] = s3 * cart[i * 6 + 3];
-  //     }
-  //     break;
-  //   case 2:
-  //     // sphr = matmul(dtrafo, matmul(cart, transpose(dtrafo)))
-  //     // This is a simplified example; the full implementation would require nested loops
-  //     printf("[Fatal] Higher-order transformations not implemented\n");
-  //     return;
-  //   case 3:
-  //     // sphr = matmul(ftrafo, matmul(cart, transpose(dtrafo)))
-  //     printf("[Fatal] Higher-order transformations not implemented\n");
-  //     return;
-  //   case 4:
-  //     // sphr = matmul(gtrafo, matmul(cart, transpose(dtrafo)))
-  //     printf("[Fatal] Higher-order transformations not implemented\n");
-  //     return;
-  //   default:
-  //     printf("[Fatal] Moments higher than g are not supported\n");
-  //     return;
-  //   }
-  //   break;
-
-  // case 3:
-  //   switch (lj)
-  //   {
-  //   case 0:
-  //   case 1:
-  //     // sphr = matmul(cart, transpose(ftrafo))
-  //     for (int i = 0; i < cart_rows; ++i)
-  //     {
-  //       for (int j = 0; j < 7; ++j)
-  //       {
-  //         sphr[i * 7 + j] = 0.0;
-  //         for (int k = 0; k < 10; ++k)
-  //         {
-  //           sphr[i * 7 + j] += cart[i * 10 + k] * ftrafo[j][k];
-  //         }
-  //       }
-  //     }
-  //     break;
-  //   case 2:
-  //   case 3:
-  //   case 4:
-  //     printf("[Fatal] Higher-order transformations not implemented\n");
-  //     return;
-  //   default:
-  //     printf("[Fatal] Moments higher than g are not supported\n");
-  //     return;
-  //   }
-  //   break;
-
-  // case 4:
-  //   switch (lj)
-  //   {
-  //   case 0:
-  //   case 1:
-  //     // sphr = matmul(cart, transpose(gtrafo))
-  //     for (int i = 0; i < cart_rows; ++i)
-  //     {
-  //       for (int j = 0; j < 9; ++j)
-  //       {
-  //         sphr[i * 9 + j] = 0.0;
-  //         for (int k = 0; k < 15; ++k)
-  //         {
-  //           sphr[i * 9 + j] += cart[i * 15 + k] * gtrafo[j][k];
-  //         }
-  //       }
-  //     }
-  //     break;
-  //   case 2:
-  //   case 3:
-  //   case 4:
-  //     printf("[Fatal] Higher-order transformations not implemented\n");
-  //     return;
-  //   default:
-  //     printf("[Fatal] Moments higher than g are not supported\n");
-  //     return;
-  //   }
-  //   break;
-
-  // default:
-  //   printf("[Fatal] Moments higher than g are not supported\n");
-  //   return;
-  // }
-
+template <typename T>
+__device__ inline void transform0(int lj, int li, int k, const device_tensor3d_t<T> &cart, device_tensor3d_t<T> &sphr)
+{
+  constexpr T s3 = 1.7320508075688772; // sqrt(3)
+  constexpr T s3_4 = 0.6123724356957945; // sqrt(3)/2
+  switch (li)
+  {
+  case 0:
+  case 1:
+    switch (lj)
+    {
+    case 0:
+    case 1:
+      // Copy cart to sphr
+      for (int i = 0; i < cart.dim2; ++i)
+      {
+        for (int j = 0; j < cart.dim3; ++j)
+        {
+          sphr(k, i, j) = cart(k, i, j);
+        }
+      }
+      break;
+    case 2:
+      // sphr = matmul(dtrafo, cart)
+      for(int i = 0; i < cart.dim2; ++i)
+      {
+        sphr(k, i, 0) = cart(k, i, 2) - 0.5 * (cart(k, i, 0) + cart(k, i, 1));
+        sphr(k, i, 1) = s3 * cart(k, i, 4);
+        sphr(k, i, 2) = s3 * cart(k, i, 5);
+        sphr(k, i, 3) = s3_4 * (cart(k, i, 0) - cart(k, i, 1));
+        sphr(k, i, 4) = s3 * cart(k, i, 3);
+      }
+      break;
+    
+    default:
+      printf("[Fatal] moment li=%i lj=%i not supported\n", li, lj);
+      assert(false);
+      return;
+    }
+    break;
+  default:
+    printf("[Fatal] transform0 not supported for li=%d lj=%d\n", li, lj);
+    assert(false);
+    return;
+  }
+  /* TODO: Support the rest of the transform cases*/
 }
 
 
-/*elemental function overlap_1d(moment, alpha) result(overlap)
-   integer, intent(in) :: moment
-   real(wp), intent(in) :: alpha
-   real(wp) :: overlap
-   real(wp), parameter :: dfactorial(0:7) = & ! see OEIS A001147
-      & [1._wp,1._wp,3._wp,15._wp,105._wp,945._wp,10395._wp,135135._wp]
 
-   if (modulo(moment, 2) == 0) then
-      overlap = (0.5_wp/alpha)**(moment/2) * dfactorial(moment/2)
-   else
-      overlap = 0.0_wp
-   end if
-end function overlap_1d*/
+/*pure subroutine horizontal_shift(ae, l, cfs)
+   integer, intent(in) :: l
+   real(wp), intent(in) :: ae
+   real(wp), intent(inout) :: cfs(*)
+   select case(l)
+   case(0) ! s
+      continue
+   case(1) ! p
+      cfs(1)=cfs(1)+ae*cfs(2)
+   case(2) ! d
+      cfs(1)=cfs(1)+ae*ae*cfs(3)
+      cfs(2)=cfs(2)+ 2*ae*cfs(3)
+   case(3) ! f
+      cfs(1)=cfs(1)+ae*ae*ae*cfs(4)
+      cfs(2)=cfs(2)+ 3*ae*ae*cfs(4)
+      cfs(3)=cfs(3)+ 3*ae*cfs(4)
+   case(4) ! g
+      cfs(1)=cfs(1)+ae*ae*ae*ae*cfs(5)
+      cfs(2)=cfs(2)+ 4*ae*ae*ae*cfs(5)
+      cfs(3)=cfs(3)+ 6*ae*ae*cfs(5)
+      cfs(4)=cfs(4)+ 4*ae*cfs(5)
+   end select
+end subroutine horizontal_shift*/
+
+__device__ inline void horizontal_shift(const double ae, const int l, double (&cfs)[MAXL])
+{
+  switch (l)
+  {
+  case 0: // s
+    break;
+  case 1: // p
+    cfs[0] += ae * cfs[1];
+    break;
+  case 2: // d
+    cfs[0] += ae * ae * cfs[2];
+    cfs[1] += 2 * ae * cfs[2];
+    break;
+  case 3: // f
+    cfs[0] += ae * ae * ae * cfs[3];
+    cfs[1] += 3 * ae * ae * cfs[3];
+    cfs[2] += 3 * ae * cfs[3];
+    break;
+  case 4: // g
+    cfs[0] += ae * ae * ae * ae * cfs[4];
+    cfs[1] += 4 * ae * ae * ae * cfs[4];
+    cfs[2] += 6 * ae * ae * cfs[4];
+    cfs[3] += 4 * ae * cfs[4];
+    break;
+  default:
+    printf("[Fatal] horizontal_shift not supported for l=%d\n", l);
+    assert(false);
+    return;
+  }
+}
+
+/*
+pure subroutine form_product(a, b, la, lb, d)
+   real(wp), intent(in) :: a(*), b(*)
+   integer, intent(in) :: la, lb
+   real(wp), intent(inout) :: d(*)
+   if(la.ge.4.or.lb.ge.4) goto 40
+   if(la.ge.3.or.lb.ge.3) goto 30
+   if(la.ge.2.or.lb.ge.2) goto 20
+   ! <s|s> = <s>
+   d(1)=a(1)*b(1)
+   if(la.eq.0.and.lb.eq.0) return
+   ! <s|p> = <s|*(|s>+|p>)
+   !       = <s> + <p>
+   d(2)=a(1)*b(2)+a(2)*b(1)
+   if(la.eq.0.or.lb.eq.0) return
+   ! <p|p> = (<s|+<p|)*(|s>+|p>)
+   !       = <s> + <p> + <d>
+   d(3)=a(2)*b(2)
+   return
+20 continue
+   ! <s|d> = <s|*(|s>+|p>+|d>)
+   !       = <s> + <p> + <d>
+   d(1)=a(1)*b(1)
+   d(2)=a(1)*b(2)+a(2)*b(1)
+   d(3)=a(1)*b(3)+a(3)*b(1)
+   if(la.eq.0.or.lb.eq.0) return
+   ! <p|d> = (<s|+<p|)*(|s>+|p>+|d>)
+   !       = <s> + <p> + <d> + <f>
+   d(3)=d(3)+a(2)*b(2)
+   d(4)=a(2)*b(3)+a(3)*b(2)
+   if(la.le.1.or.lb.le.1) return
+   ! <d|d> = (<s|+<p|+<d|)*(|s>+|p>+|d>)
+   !       = <s> + <p> + <d> + <f> + <g>
+   d(5)=a(3)*b(3)
+   return
+30 continue
+   ! <s|f> = <s|*(|s>+|p>+|d>+|f>)
+   !       = <s> + <p> + <d> + <f>
+   d(1)=a(1)*b(1)
+   d(2)=a(1)*b(2)+a(2)*b(1)
+   d(3)=a(1)*b(3)+a(3)*b(1)
+   d(4)=a(1)*b(4)+a(4)*b(1)
+   if(la.eq.0.or.lb.eq.0) return
+   ! <p|f> = (<s|+<p|)*(|s>+|p>+|d>+|f>)
+   !       = <s> + <p> + <d> + <f> + <g>
+   d(3)=d(3)+a(2)*b(2)
+   d(4)=d(4)+a(2)*b(3)+a(3)*b(2)
+   d(5)=a(2)*b(4)+a(4)*b(2)
+   if(la.le.1.or.lb.le.1) return
+   ! <d|f> = (<s|+<p|+<d|)*(|s>+|p>+|d>+|f>)
+   !       = <s> + <p> + <d> + <f> + <g> + <h>
+   d(5)=d(5)+a(3)*b(3)
+   d(6)=a(3)*b(4)+a(4)*b(3)
+   if(la.le.2.or.lb.le.2) return
+   ! <f|f> = (<s|+<p|+<d|+<f|)*(|s>+|p>+|d>+|f>)
+   !       = <s> + <p> + <d> + <f> + <g> + <h> + <i>
+   d(7)=a(4)*b(4)
+   return
+40 continue
+   ! <s|g> = <s|*(|s>+|p>+|d>+|f>+|g>)
+   !       = <s> + <p> + <d> + <f> + <g>
+   d(1)=a(1)*b(1)
+   d(2)=a(1)*b(2)+a(2)*b(1)
+   d(3)=a(1)*b(3)+a(3)*b(1)
+   d(4)=a(1)*b(4)+a(4)*b(1)
+   d(5)=a(1)*b(5)+a(5)*b(1)
+   if(la.eq.0.or.lb.eq.0) return
+   ! <p|g> = (<s|+<p|)*(|s>+|p>+|d>+|f>+|g>)
+   !       = <s> + <p> + <d> + <f> + <g> + <h>
+   d(3)=d(3)+a(2)*b(2)
+   d(4)=d(4)+a(2)*b(3)+a(3)*b(2)
+   d(5)=d(5)+a(2)*b(4)+a(4)*b(2)
+   d(6)=a(2)*b(5)+a(5)*b(2)
+   if(la.le.1.or.lb.le.1) return
+   ! <d|g> = (<s|+<p|+<d|)*(|s>+|p>+|d>+|f>+|g>)
+   !       = <s> + <p> + <d> + <f> + <g> + <h> + <i>
+   d(5)=d(5)+a(3)*b(3)
+   d(6)=d(5)+a(3)*b(4)+a(4)*b(3)
+   d(7)=a(3)*b(5)+a(5)*b(3)
+   if(la.le.2.or.lb.le.2) return
+   ! <f|g> = (<s|+<p|+<d|+<f|)*(|s>+|p>+|d>+|f>+|g>)
+   !       = <s> + <p> + <d> + <f> + <g> + <h> + <i> + <k>
+   d(7)=d(7)+a(4)*b(4)
+   d(8)=a(4)*b(5)+a(5)*b(4)
+   if(la.le.3.or.lb.le.3) return
+   ! <g|g> = (<s|+<p|+<d|+<f|+<g|)*(|s>+|p>+|d>+|f>+|g>)
+   !       = <s> + <p> + <d> + <f> + <g> + <h> + <i> + <k> + <l>
+   d(9)=a(5)*b(5)
+
+end subroutine form_product
+*/
+
+__device__ inline void form_product(
+  const double (&a)[MAXL],
+  const double (&b)[MAXL],
+  const int &la, const int &lb,
+  double (&d)[MAXL2])
+{
+  if (la >= 4 || lb >= 4) goto label_40;
+  if (la >= 3 || lb >= 3) goto label_30;
+  if (la >= 2 || lb >= 2) goto label_20;
+  // <s|s> = <s>
+  d[0] = a[0] * b[0];
+  if (la == 0 && lb == 0) return;
+  // <s|p> = <s|*(|s>+|p>)
+  //       = <s> + <p>
+  d[1] = a[0] * b[1] + a[1] * b[0];
+  if (la == 0 || lb == 0) return;
+  // <p|p> = (<s|+<p|)*(|s>+|p>)
+  //       = <s> + <p> + <d>
+  d[2] = a[1] * b[1];
+  return;
+label_20:
+  // <s|d> = <s|*(|s>+|p>+|d>)
+  //       = <s> + <p> + <d>
+  d[0] = a[0] * b[0];
+  d[1] = a[0] * b[1] + a[1] * b[0];
+  d[2] = a[0] * b[2] + a[2] * b[0];
+  if (la == 0 || lb == 0) return;
+  // <p|d> = (<s|+<p|)*(|s>+|p>+|d>)
+  //       = <s> + <p> + <d> + <f>
+  d[2] += a[1] * b[1];
+  d[3] = a[1] * b[2] + a[2] * b[1];
+  if (la <= 1 || lb <= 1) return;
+  // <d|d> = (<s|+<p|+<d|)*(|s>+|p>+|d>)
+  //       = <s> + <p> + <d> + <f> + <g>
+  d[4] = a[2] * b[2];
+  return;
+label_30:
+  // <s|f> = <s|*(|s>+|p>+|d>+|f>)
+  //       = <s> + <p> + <d> + <f>
+  d[0] = a[0] * b[0];
+  d[1] = a[0] * b[1] + a[1] * b[0];
+  d[2] = a[0] * b[2] + a[2] * b[0];
+  d[3] = a[0] * b[3] + a[3] * b[0];
+  if (la == 0 || lb == 0) return;
+  // <p|f> = (<s|+<p|)*(|s>+|p>+|d>+|f>)
+  //       = <s> + <p> + <d> + <f> + <g>
+  d[2] += a[1] * b[1];
+  d[3] += a[1] * b[2] + a[2] * b[1];
+  d[4] = a[1] * b[3] + a[3] * b[1];
+  if (la <= 1 || lb <= 1) return;
+  // <d|f> = (<s|+<p|+<d|)*(|s>+|p>+|d>+|f>)
+  //       = <s> + <p> + <d> + <f> + <g> + <h>
+  d[4] += a[2] * b[2];
+  d[5] = a[2] * b[3] + a[3] * b[2];
+  if (la <= 2 || lb <= 2) return;
+  // <f|f> = (<s|+<p|+<d|+<f|)*(|s>+|p>+|d>+|f>)
+  //       = <s> + <p> + <d> + <f> + <g> + <h> + <i>
+  d[6] = a[3] * b[3];
+  return;
+label_40:
+  // <s|g> = <s|*(|s>+|p>+|d>+|f>+|g>)
+  //       = <s> + <p> + <d> + <f> + <g>
+  d[0] = a[0] * b[0];
+  d[1] = a[0] * b[1] + a[1] * b[0];
+  d[2] = a[0] * b[2] + a[2] * b[0];
+  d[3] = a[0] * b[3] + a[3] * b[0];
+  d[4] = a[0] * b[4] + a[4] * b[0];
+  if (la == 0 || lb == 0) return;
+  // <p|g> = (<s|+<p|)*(|s>+|p>+|d>+|f>+|g>)
+  //       = <s> + <p> + <d> + <f> + <g> + <h>
+  d[2] += a[1] * b[1];
+  d[3] += a[1] * b[2] + a[2] * b[1];
+  d[4] += a[1] * b[3] + a[3] * b[1];
+  d[5] = a[1] * b[4] + a[4] * b[1];
+  if (la <= 1 || lb <= 1) return;
+  // <d|g> = (<s|+<p|+<d|)*(|s>+|p>+|d>+|f>+|g>)
+  //       = <s> + <p> + <d> + <f> + <g> + <h> + <i>
+  d[4] += a[2] * b[2];
+  d[5] += a[2] * b[3] + a[3] * b[2];
+  d[6] = a[2] * b[4] + a[4] * b[2];
+  if (la <= 2 || lb <= 2) return;
+  // <f|g> = (<s|+<p|+<d|+<f|)*(|s>+|p>+|d>+|f>+|g>)
+  //       = <s> + <p> + <d> + <f> + <g> + <h> + <i> + <k>
+  d[6] += a[3] * b[3];
+  d[7] = a[3] * b[4] + a[4] * b[3];
+  if (la <= 3 || lb <= 3) return;
+  // <g|g> = (<s|+<p|+<d|+<f|+<g|)*(|s>+|p>+|d>+|f>+|g>)
+  //       = <s> + <p> + <d> + <f> + <g> + <h> + <i> + <k> + <l>
+  d[8] = a[4] * b[4];
+  return;
+}
 
 __device__ inline double overlap_1d(int moment, double alpha)
 {
@@ -219,50 +362,107 @@ __device__ inline double overlap_1d(int moment, double alpha)
   return overlap;
 }
 
-/*pure subroutine multipole_3d(rpj, rpi, aj, ai, lj, li, s1d, s3d, d3d, q3d)
-   real(wp), intent(in) :: rpi(3)
-   real(wp), intent(in) :: rpj(3)
-   real(wp), intent(in) :: ai
-   real(wp), intent(in) :: aj
-   integer, intent(in) :: li(3)
-   integer, intent(in) :: lj(3)
-   real(wp), intent(in) :: s1d(0:)
-   real(wp), intent(out) :: s3d
-   real(wp), intent(out) :: d3d(3)
-   real(wp), intent(out) :: q3d(6)
-*/
 
 __device__ inline void multipole_3d(
-  const double *rpj,
-  const double *rpi,
-  double aj,
-  double ai,
+  const double (&rpj)[3],
+  const double (&rpi)[3],
+  const double aj,
+  const double ai,
   const int (&lj)[3],
   const int (&li)[3],
   const double (&s1d)[MAXL2],
-  double &val,
-  double (&dip)[3],
-  double (&quad)[6])
+  double &s3d,
+  double (&d3d)[3],
+  double (&q3d)[6])
 {
-  // real(wp), intent(in) :: rpi(3)
-  // real(wp), intent(in) :: rpj(3)
-  // real(wp), intent(in) :: ai
-  // real(wp), intent(in) :: aj
-  // integer, intent(in) :: li(3)
-  // integer, intent(in) :: lj(3)
-  // real(wp), intent(in) :: s1d(0:)
-  // real(wp), intent(out) :: s3d
-  // real(wp), intent(out) :: d3d(3)
-  // real(wp), intent(out) :: q3d(6)
+  /*
+   integer :: k, l
+   real(wp) :: vi(0:maxl), vj(0:maxl), vv(0:maxl2), v1d(3, 3)
 
-  val = s1d[lj[0]] * s1d[li[0]];
-  dip[0] = (rpj[0] - rpi[0]) * val;
-  dip[1] = (rpj[1] - rpi[1]) * val;
-  dip[2] = (rpj[2] - rpi[2]) * val;
+   v1d(:, :) = 0.0_wp
+*/
+  double vi[MAXL] = {0.0}, vj[MAXL] = {0.0}, vv[MAXL2] = {0.0}, v1d[3][3] = {0.0};
+  /*do k = 1, 3
+      vv(:) = 0.0_wp
+      vi(:) = 0.0_wp
+      vj(:) = 0.0_wp
+      vi(li(k)) = 1.0_wp
+      vj(lj(k)) = 1.0_wp
+      call horizontal_shift(rpi(k), li(k), vi)
+      call horizontal_shift(rpj(k), lj(k), vj)
+      call form_product(vi, vj, li(k), lj(k), vv)
+      do l = 0, li(k) + lj(k)
+         v1d(k, 1) = v1d(k, 1) + s1d(l) * vv(l)
+         v1d(k, 2) = v1d(k, 2) + (s1d(l+1) + rpi(k)*s1d(l)) * vv(l)
+         v1d(k, 3) = v1d(k, 3) + (s1d(l+2) + 2*rpi(k)*s1d(l+1) + rpi(k)*rpi(k)*s1d(l)) * vv(l)
+      end do
+   end do*/
+  for(int k = 0; k < 3; ++k)
+  {
+    for (int l = 0; l < MAXL2; ++l)
+    {
+      vv[l] = 0.0;
+      vi[l] = 0.0;
+      vj[l] = 0.0;
+    }
+    vi[li[k]] = 1.0;
+    vj[lj[k]] = 1.0;
+    horizontal_shift(rpi[k], li[k], vi);
+    horizontal_shift(rpj[k], lj[k], vj);
+    form_product(vi, vj, li[k], lj[k], vv);
+    for (int l = 0; l <= li[k] + lj[k]; ++l)
+    {
+      v1d[k][0] += s1d[l] * vv[l];
+      v1d[k][1] += (s1d[l + 1] + rpi[k] * s1d[l]) * vv[l];
+      v1d[k][2] += (s1d[l + 2] + 2 * rpi[k] * s1d[l + 1] + rpi[k] * rpi[k] * s1d[l]) * vv[l];
+    }
+  }
+  // s3d = v1d(1, 1) * v1d(2, 1) * v1d(3, 1)
+  s3d = v1d[0][0] * v1d[1][0] * v1d[2][0];
 
-  quad[0] = (rpj[0] - rpi[0]) * dip[0];
-  quad[1] = (rpj[1] - rpi[1]) * dip[1];
-  quad[2] = (rpj[2] - rpi[2]) * dip[2];
+  // d3d(1) = v1d(1, 2) * v1d(2, 1) * v1d(3, 1)
+  // d3d(2) = v1d(1, 1) * v1d(2, 2) * v1d(3, 1)
+  // d3d(3) = v1d(1, 1) * v1d(2, 1) * v1d(3, 2)
+  d3d[0] = v1d[0][1] * v1d[1][0] * v1d[2][0];
+  d3d[1] = v1d[0][0] * v1d[1][1] * v1d[2][0];
+  d3d[2] = v1d[0][0] * v1d[1][0] * v1d[2][1];
+
+  // q3d(1) = v1d(1, 3) * v1d(2, 1) * v1d(3, 1)
+  // q3d(2) = v1d(1, 2) * v1d(2, 2) * v1d(3, 1)
+  // q3d(3) = v1d(1, 1) * v1d(2, 3) * v1d(3, 1)
+  // q3d(4) = v1d(1, 2) * v1d(2, 1) * v1d(3, 2)
+  // q3d(5) = v1d(1, 1) * v1d(2, 2) * v1d(3, 2)
+  // q3d(6) = v1d(1, 1) * v1d(2, 1) * v1d(3, 3)
+  q3d[0] = v1d[0][2] * v1d[1][0] * v1d[2][0];
+  q3d[1] = v1d[0][1] * v1d[1][1] * v1d[2][0];
+  q3d[2] = v1d[0][0] * v1d[1][2] * v1d[2][0];
+  q3d[3] = v1d[0][1] * v1d[1][0] * v1d[2][1];
+  q3d[4] = v1d[0][0] * v1d[1][1] * v1d[2][1];
+  q3d[5] = v1d[0][0] * v1d[1][0] * v1d[2][2];
+}
+
+
+/*pure subroutine transform1(lj, li, cart, sphr)
+   integer, intent(in) :: li
+   integer, intent(in) :: lj
+   real(wp), intent(in) :: cart(:, :, :)
+   real(wp), intent(out) :: sphr(:, :, :)
+   integer :: k
+
+   do k = 1, size(cart, 1)
+      call transform0(lj, li, cart(k, :, :), sphr(k, :, :))
+   end do
+end subroutine transform1*/
+template <typename T>
+__device__ inline void transform1(int lj, int li, 
+  const device_tensor3d_t<T> &cart, device_tensor3d_t<T> &sphr)
+{
+  for(int k = 0; k < cart.dim1; ++k)
+  {
+    /* cart is of shape tensor3d_t(mlao[cgtoi.ang], mlao[cgtoj.ang], 3); d3d.fill(0.0);
+       shpr is of shape tensor3d_t(nao, nao, 3)*/
+    transform0(lj, li, k, cart, sphr);
+  }
 }
 
 /*subroutine multipole_cgto(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint)
@@ -292,56 +492,32 @@ __device__ void multipole_cgto(
   device_tensor3d_t<double> &dpint,
   device_tensor3d_t<double> &qpint)
 {
-  printf("================== MULTIPOLE_CGTO =================\n");
-  printf("bid %i tid %i: multipole_cgto\n", blockIdx.x, threadIdx.x);
-  printf("%s:%d: %s\n", __FILE__, __LINE__, __PRETTY_FUNCTION__);
-  printf("Parameters\n");
-  printf("cgtoj=\n");
-  printstruct(cgtoj);
-  printf("cgtoi=\n");
-  printstruct(cgtoi);
-  printf("r2=%f\n", r2);
-  printf("vec=%f, %f, %f\n", vec[0], vec[1], vec[2]);
-  printf("intcut=%f\n", intcut);
-  printf("overlap=\n");
-  overlap.print();
-  printf("dpint=\n");
-  dpint.print();
-  printf("qpint=\n");
-  qpint.print();
-  printf("====================================================\n");
-
+  {
+    printf("================== MULTIPOLE_CGTO =================\n");
+    printf("bid %i tid %i: multipole_cgto\n", blockIdx.x, threadIdx.x);
+    printf("%s:%d: %s\n", __FILE__, __LINE__, __PRETTY_FUNCTION__);
+    printf("Parameters\n");
+    printf("cgtoj=\n");
+    printstruct(cgtoj);
+    printf("cgtoi=\n");
+    printstruct(cgtoi);
+    printf("r2=%f\n", r2);
+    printf("vec=%f, %f, %f\n", vec[0], vec[1], vec[2]);
+    printf("intcut=%f\n", intcut);
+    printf("overlap=\n");
+    overlap.print();
+    printf("dpint=\n");
+    dpint.print();
+    printf("qpint=\n");
+    qpint.print();
+    printf("====================================================\n");
+  }
   /*integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
    integer, parameter :: mlao(0:maxl) = [1, 3, 6, 10, 15, 21, 28]
    integer, parameter :: lmap(0:maxl) = [0, 1, 4, 10, 20, 35, 56]*/
   constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13};
   constexpr int mlao[] = {1, 3, 6, 10, 15, 21, 28};
   constexpr int lmap[] = {0, 1, 4, 10, 20, 35, 56};
-  /*   ! x (+1), y (-1), z (0) in [-1, 0, 1] sorting
-   integer, parameter :: lx(3, 84) = reshape([&
-      & 0, &
-      & 0,0,1, &
-      & 2,0,0,1,1,0, &
-      & 3,0,0,2,2,1,0,1,0,1, &
-      & 4,0,0,3,3,1,0,1,0,2,2,0,2,1,1, &
-      & 5,0,0,3,3,2,2,0,0,4,4,1,0,0,1,1,3,1,2,2,1, &
-      & 6,0,0,3,3,0,5,5,1,0,0,1,4,4,2,0,2,0,3,3,1,2,2,1,4,1,1,2, &
-      & 0, &
-      & 1,0,0, &
-      & 0,2,0,1,0,1, &
-      & 0,3,0,1,0,2,2,0,1,1, &
-      & 0,4,0,1,0,3,3,0,1,2,0,2,1,2,1, &
-      & 0,5,0,2,0,3,0,3,2,1,0,4,4,1,0,1,1,3,2,1,2, &
-      & 0,6,0,3,0,3,1,0,0,1,5,5,2,0,0,2,4,4,2,1,3,1,3,2,1,4,1,2, &
-      & 0, &
-      & 0,1,0, &
-      & 0,0,2,0,1,1, &
-      & 0,0,3,0,1,0,1,2,2,1, &
-      & 0,0,4,0,1,0,1,3,3,0,2,2,1,1,2, &
-      & 0,0,5,0,2,0,3,2,3,0,1,0,1,4,4,3,1,1,1,2,2, &
-      & 0,0,6,0,3,3,0,1,5,5,1,0,0,2,4,4,0,2,1,2,2,3,1,3,1,1,4,2], &
-      & shape(lx), order=[2, 1])
-  */
   constexpr int lx[32][3] = {
     {0, 0, 0}, 
     {0, 0, 1}, {0, 1, 0}, {1, 0, 0}, 
@@ -350,15 +526,6 @@ __device__ void multipole_cgto(
     {0, 0, 4}, {0, 1, 3}, {0, 2, 2}, {0, 3, 1}, {0, 4, 0}, {1, 0, 3}, {1, 1, 2}, {1, 2, 1}, {1, 3, 0}, {2, 0, 2}, {2, 1, 1}, {2, 2, 0}
   };
 
-  /*integer :: ip, jp, mli, mlj, l
-  real(wp) :: eab, oab, est, s1d(0:maxl2), rpi(3), rpj(3), cc, val, dip(3), quad(6), pre, tr
-  real(wp) :: s3d(mlao(cgtoj%ang), mlao(cgtoi%ang))
-  real(wp) :: d3d(3, mlao(cgtoj%ang), mlao(cgtoi%ang))
-  real(wp) :: q3d(6, mlao(cgtoj%ang), mlao(cgtoi%ang))
-
-  s3d(:, :) = 0.0_wp
-  d3d(:, :, :) = 0.0_wp
-  q3d(:, :, :) = 0.0_wp*/
   int ip = 0, jp = 0, mli = 0, mlj = 0, l = 0;
   double eab = 0.0, oab = 0.0, est = 0.0, s1d[MAXL2] = {0.0}, rpi[3] = {0.0}, 
     rpj[3] = {0.0}, cc = 0.0, val = 0.0, dip[3] = {0.0}, quad[6] = {0.0}, pre = 0.0, tr = 0.0;
@@ -411,27 +578,26 @@ __device__ void multipole_cgto(
         rpj[k] = +vec[k] * cgtoi.alpha[ip] * oab;
       }
       for (l = 0; l <= cgtoi.ang + cgtoj.ang + 2; ++l)
-      {
         s1d[l] = overlap_1d(l, eab);
-      }
       double cc = cgtoi.coeff[ip] * cgtoj.coeff[jp] * pre;
       for (mli = 0; mli < mlao[cgtoi.ang]; ++mli)
       {
         for (mlj = 0; mlj < mlao[cgtoj.ang]; ++mlj)
         {
-          // DEBUG
-          printf("================== MULTIPOLE_CGTO INNER LOOP =================\n");
-          printf("bid %i tid %i: multipole_cgto inner loop\n", blockIdx.x, threadIdx.x);
-          printf("Parameters\n");
-          printf("mli=%d, mlj=%d\n", mli, mlj);
-          printf("rpi=%f, %f, %f\n", rpi[0], rpi[1], rpi[2]); printf("rpj=%f, %f, %f\n", rpj[0], rpj[1], rpj[2]);
-          printf("cgtoj.alpha[%d]=%f, cgtoi.alpha[%d]=%f\n", jp, cgtoj.alpha[jp], ip, cgtoi.alpha[ip]);
-          printf("lx[%i][:] = [%i, %i, %i]\n", mlj + lmap[cgtoj.ang], lx[mlj + lmap[cgtoj.ang]][0], lx[mlj + lmap[cgtoj.ang]][1], lx[mlj + lmap[cgtoj.ang]][2]);
-          printf("lx[%i][:] = [%i, %i, %i]\n", mli + lmap[cgtoi.ang], lx[mli + lmap[cgtoi.ang]][0], lx[mli + lmap[cgtoi.ang]][1], lx[mli + lmap[cgtoi.ang]][2]);
-          printf("==============================================================\n");
-
+          {
+            printf("================== MULTIPOLE_CGTO INNER LOOP =================\n");
+            printf("bid %i tid %i: multipole_cgto inner loop\n", blockIdx.x, threadIdx.x);
+            printf("Parameters\n");
+            printf("mli=%d, mlj=%d\n", mli, mlj);
+            printf("rpi=%f, %f, %f\n", rpi[0], rpi[1], rpi[2]); printf("rpj=%f, %f, %f\n", rpj[0], rpj[1], rpj[2]);
+            printf("cgtoj.alpha[%d]=%f, cgtoi.alpha[%d]=%f\n", jp, cgtoj.alpha[jp], ip, cgtoi.alpha[ip]);
+            printf("lx[%i][:] = [%i, %i, %i]\n", mlj + lmap[cgtoj.ang], lx[mlj + lmap[cgtoj.ang]][0], lx[mlj + lmap[cgtoj.ang]][1], lx[mlj + lmap[cgtoj.ang]][2]);
+            printf("lx[%i][:] = [%i, %i, %i]\n", mli + lmap[cgtoi.ang], lx[mli + lmap[cgtoi.ang]][0], lx[mli + lmap[cgtoi.ang]][1], lx[mli + lmap[cgtoi.ang]][2]);
+            printf("==============================================================\n");
+          }
           multipole_3d(
-            rpj, rpi, cgtoj.alpha[jp], cgtoi.alpha[ip], 
+            rpj, rpi, 
+            cgtoj.alpha[jp], cgtoi.alpha[ip], 
             lx[mlj + lmap[cgtoj.ang]], lx[mli + lmap[cgtoi.ang]], 
             s1d, val, dip, quad);
           s3d(mli, mlj) += cc * val;
@@ -449,9 +615,9 @@ __device__ void multipole_cgto(
    call transform1(cgtoj%ang, cgtoi%ang, d3d, dpint)
    call transform1(cgtoj%ang, cgtoi%ang, q3d, qpint)
   */
-  transform0(cgtoj.ang, cgtoi.ang, s3d, overlap);
-  // transform1(cgtoj.ang, cgtoi.ang, d3d.data, dpint.data);
-  // transform1(cgtoj.ang, cgtoi.ang, q3d.data, qpint.data);
+  transform0(cgtoi.ang, cgtoj.ang, s3d, overlap);
+  transform1(cgtoi.ang, cgtoj.ang, d3d, dpint);
+  transform1(cgtoi.ang, cgtoj.ang, q3d, qpint);
 
 }
 
@@ -493,12 +659,6 @@ extern "C"
     // }
     // printf("\n");
   }
-
-  void call_hello_kernel_()
-  {
-    hello_kernel<<<1, 1>>>();
-    cudaDeviceSynchronize(); // Wait for the kernel to finish.
-  }
 }
 
 __global__ void get_hamiltonian(
@@ -513,43 +673,35 @@ __global__ void get_hamiltonian(
     tensor3d_t<double> qpint,
     tensor2d_t<double> hamiltonian)
 {
-  printf("================= KERNEL =================\n");
-  // printf("mol = \n");
-  // printstruct(mol);
 
-  // printf("trans = \n");
-  // trans.print();
+  {
+    printf("================= KERNEL =================\n");
+    // printf("mol = \n");
+    // printstruct(mol);
+    // printf("trans = \n");
+    // trans.print();
+    // printf("alist = \n");
+    // printstruct(alist);
+    // printf("bas = \n");
+    // printstruct(bas);
+    // printf("h0 = \n");
+    // printstruct(h0);
+    // printf("selfenergy = \n");
+    // selfenergy.print();
+    // printf("overlap = \n");
+    // overlap.print();
+    // printf("dpint = \n");
+    // dpint.print();
+    // printf("qpint = \n");
+    // qpint.print();
+    // printf("hamiltonian = \n");
+    // hamiltonian.print();
+    // constants
+    // integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
+  }
 
-  // printf("alist = \n");
-  // printstruct(alist);
-
-  // printf("bas = \n");
-  // printstruct(bas);
-
-  // printf("h0 = \n");
-  // printstruct(h0);
-
-  // printf("selfenergy = \n");
-  // selfenergy.print();
-
-  // printf("overlap = \n");
-  // overlap.print();
-
-  // printf("dpint = \n");
-  // dpint.print();
-
-  // printf("qpint = \n");
-  // qpint.print();
-
-  // printf("hamiltonian = \n");
-  // hamiltonian.print();
-
-  // constants
-  // integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
   int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
-
   constexpr int msao[7] = {1, 3, 5, 7, 9, 11, 13};
-
   // locals
   int i = 0, j = 0, l = 0;
   int iat = 0, jat = 0, izp = 0, jzp = 0, itr = 0, k = 0, img = 0, inl = 0;
@@ -638,7 +790,7 @@ __global__ void get_hamiltonian(
                      * h0%hscale(jsh, ish, jzp, izp) * shpoly
 
                   nao = msao(bas%cgto(jsh, jzp)%ang)*/
-        const auto &cgtoj = bas.cgto(jsh, jzp);
+        const auto &cgtoj = bas.cgto(jsh, jzp); /* TODO: aren't these swapped? */
         const auto &cgtoi = bas.cgto(ish, izp);
         multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
         // printf("ish = %d, jsh = %d, ii = %d, jj = %d\n", ish, jsh, ii, jj)
