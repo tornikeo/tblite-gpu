@@ -803,13 +803,8 @@ __global__ void get_hamiltonian_interatomic(
     // constants
     // integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
   }
-
-  int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+  const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
   constexpr int msao[7] = {1, 3, 5, 7, 9, 11, 13};
-  // locals
-  // int i = 0, j = 0, l = 0;
-  // int iat = 0, jat = 0, izp = 0, jzp = 0, itr = 0, k = 0, img = 0, inl = 0;
-  // int ish = 0, jsh = 0, is = 0, js = 0, ii = 0, jj = 0, iao = 0, jao = 0, nao = 0, ij = 0;
   double rr = 0.0, r2 = 0.0, vec[3] = {0.0}, cutoff2 = 0.0, hij = 0.0, shpoly = 0.0, dtmpj[3] = {0.0}, qtmpj[6] = {0.0};
 
   // allocate stmp, dtmpi, qtmpi
@@ -1058,14 +1053,9 @@ __global__ void get_hamiltonian_intraatomic(
   // integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
 
 
-  int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+  const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
   constexpr int msao[7] = {1, 3, 5, 7, 9, 11, 13};
-  // locals
-  // int i = 0, j = 0, l = 0;
-  // int iat = 0, jat = 0, izp = 0, jzp = 0, itr = 0, k = 0, img = 0, inl = 0;
-  // int ish = 0, jsh = 0, is = 0, js = 0, ii = 0, jj = 0, iao = 0, jao = 0, nao = 0, ij = 0;
   double rr = 0.0, r2 = 0.0, vec[3] = {0.0}, cutoff2 = 0.0, hij = 0.0, shpoly = 0.0, dtmpj[3] = {0.0}, qtmpj[6] = {0.0};
-
 
   // allocate stmp, dtmpi, qtmpi
   device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]);
@@ -1140,7 +1130,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     const double *h0_rad, int h0_rad_dim1,
     const double *h0_refocc, int h0_refocc_dim1, int h0_refocc_dim2,
 
-    // Diagonal elememts of the Hamiltonian  (nel)
+    // Diagonal elememts of the Hamiltonian  (nelem)
     const double *selfenergy,
     // Overlap integral matrix (nao, nao)
     double *overlap,
@@ -1151,49 +1141,13 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     // Hamiltonian matrix (nao, nao)
     double *hamiltonian)
 {
-  printf("================= CUDA =================\n");
-  // DEBUG print values of h0_hscale_dim1, int h0_hscale_dim2, int h0_hscale_dim3, int h0_hscale_dim4
-  // printf("====================== DEBUG =================\n");
-  // printf("h0_hscale_dim1 = %d\n", h0_hscale_dim1);
-  // printf("h0_hscale_dim2 = %d\n", h0_hscale_dim2);
-  // printf("h0_hscale_dim3 = %d\n", h0_hscale_dim3);
-  // printf("h0_hscale_dim4 = %d\n", h0_hscale_dim4);
-  // printf("======================= DEBUG =================\n");
-
-  /* Pack args into structures */
-  // debug print alist entires
-  // printf("alist_inl = \n");
-  // for (int i = 0; i < alist_inl_dim1; ++i)
-  // {
-  //   printf("%d, ", alist_inl[i]);
-  // }
-  // printf("\n");
-  // printf("alist_nnl = \n");
-  // for (int i = 0; i < alist_nnl_dim1; ++i)
-  // {
-  //   printf("%d, ", alist_nnl[i]);
-  // }
-  // printf("\n");
-  // printf("alist_nlat = \n");
-  // for (int i = 0; i < alist_nlat_dim1; ++i)
-  // {
-  //   printf("%d, ", alist_nlat[i]);
-  // }
-  // printf("\n");
-  // printf("alist_nltr = \n");
-  // for (int i = 0; i < alist_nltr_dim1; ++i)
-  // {
-  //   printf("%d, ", alist_nltr[i]);
-  // }
-  // printf("\n");
+  printf("================= CUDA C/C++ =================\n");
 
   const adjacency_list alist{
       tensor1d_t(alist_inl, alist_inl_dim1),
       tensor1d_t(alist_nnl, alist_nnl_dim1),
       tensor1d_t(alist_nlat, alist_nlat_dim1),
       tensor1d_t(alist_nltr, alist_nltr_dim1)};
-
-  // printstruct(alist);
 
   const structure_type mol{
       mol_nat, mol_nid, mol_nbd,
@@ -1207,21 +1161,13 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       tensor2d_t(mol_bond, mol_bond_dim1, mol_bond_dim2)};
 
   const tb_hamiltonian h0{
-      // h0_selfenergy, h0_selfenergy_dim1, h0_selfenergy_dim2,
       tensor2d_t(h0_selfenergy, h0_selfenergy_dim1, h0_selfenergy_dim2),
-      // h0_kcn, h0_kcn_dim1, h0_kcn_dim2,
       tensor2d_t(h0_kcn, h0_kcn_dim1, h0_kcn_dim2),
-      // h0_kq1, h0_kq1_dim1, h0_kq1_dim2,
       tensor2d_t(h0_kq1, h0_kq1_dim1, h0_kq1_dim2),
-      // h0_kq2, h0_kq2_dim1, h0_kq2_dim2,
       tensor2d_t(h0_kq2, h0_kq2_dim1, h0_kq2_dim2),
-      // h0_hscale, h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4,
       tensor4d_t(h0_hscale, h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4),
-      // h0_shpoly, h0_shpoly_dim1, h0_shpoly_dim2,
       tensor2d_t(h0_shpoly, h0_shpoly_dim1, h0_shpoly_dim2),
-      // h0_rad, h0_rad_dim1,
       tensor1d_t(h0_rad, h0_rad_dim1),
-      // h0_refocc, h0_refocc_dim1, h0_refocc_dim2};
       tensor2d_t(h0_refocc, h0_refocc_dim1, h0_refocc_dim2)};
 
   const basis_type bas{
@@ -1239,6 +1185,15 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       tensor1d_t(bas_ao2sh, bas_ao2sh_dim1),
       tensor1d_t(bas_sh2at, bas_sh2at_dim1),
       tensor2d_t(cgto, cgto_dim1, cgto_dim2)};
+  
+  // DEBUG
+  // printf("at %s:%i\n", __func__, __LINE__);
+  // printf("nao = %i\n", nao);
+  // printf("nelem = %i\n", nelem);
+  // printstruct(bas);
+  // printstruct(alist);
+  // printstruct(mol);
+  // printstruct(h0);
 
   const structure_type d_mol{
       mol.nat,
@@ -1299,7 +1254,6 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   d_qpint.memset(static_cast<double>(0.0));
   d_hamiltonian.memset(static_cast<double>(0.0));
   
-  // We need to set heap size for CUDA, to use malloc inside kernel
   ////////////////////////////////////////////
   // Launch kernel part I
   ////////////////////////////////////////////
@@ -1307,11 +1261,9 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   float milliseconds = 0;
 
   {
-
     CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1 * 1024 * 1024););
     cudaDeviceSynchronize();
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
-    printf("We are at kernel invocation");
     get_hamiltonian_interatomic<<<1, mol.nat>>>(
       d_mol,
       d_trans,
@@ -1323,16 +1275,12 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       d_dpint,
       d_qpint,
       d_hamiltonian);
-    printf("We are after kernel invocation");
     CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaGetLastError());
-    
-    // Stop timing
+
     cudaEventRecord(stop); cudaEventSynchronize(stop);
-    
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("Kernel part I execution time: %f ms\n", milliseconds);
-    
     cudaEventDestroy(start); cudaEventDestroy(stop);
   }
   
@@ -1355,69 +1303,12 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaGetLastError());
 
-    // Stop timing
     cudaEventRecord(stop); cudaEventSynchronize(stop);
 
-    // Calculate elapsed time
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("Kernel part II execution time: %f ms\n", milliseconds);
-    // Clean up events
     cudaEventDestroy(start); cudaEventDestroy(stop);
   }
   printf("Exiting prematurely. Remove this once the kernel is working.\n");
   exit(EXIT_FAILURE);
-
-  // printf("at %s:%i\n", __func__, __LINE__);
-  // printf("nao = %i\n", nao);
-  // printf("nelem = %i\n", nelem);
-  // printstruct(bas);
-  // printstruct(alist);
-  // printstruct(mol);
-  // printstruct(h0);
-
-  // printf("bas_nsh_id = \n");
-  // printr(bas_nsh_id_dim1, bas_nsh_id);
-  // printf("bas_nsh_at = \n");
-  // printr(bas_nsh_at_dim1, bas_nsh_at);
-  // printf("bas_nao_sh = \n");
-  // printr(bas_nao_sh_dim1, bas_nao_sh);
-  // printf("bas_iao_sh = \n");
-  // printr(bas_iao_sh_dim1, bas_iao_sh);
-  // printf("bas_ish_at = \n");
-  // printr(bas_ish_at_dim1, bas_ish_at);
-  // printf("bas_ao2at = \n");
-  // printr(bas_ao2at_dim1, bas_ao2at);
-  // printf("bas_ao2sh = \n");
-  // printr(bas_ao2sh_dim1, bas_ao2sh);
-  // printf("bas_sh2at = \n");
-  // printr(bas_sh2at_dim1, bas_sh2at);
-
-  // for (int i = 0; i < cgto_dim1; ++i)
-  // {
-  //   for (int j = 0; j < cgto_dim2; ++j)
-  //   {
-  //     printf("cgto[%d][%d] = ", i, j);
-  //     printstruct(cgto[i * cgto_dim2 + j]);
-  //   }
-  // }
-
-  // printf("h0_selfenergy = \n");
-  // printr(h0_selfenergy_dim1, h0_selfenergy_dim2, h0_selfenergy);
-  // printf("h0_kcn = \n");
-  // printr(h0_kcn_dim1, h0_kcn_dim2, h0_kcn);
-  // printf("h0_kq1 = \n");
-  // printr(h0_kq1_dim1, h0_kq1_dim2, h0_kq1);
-  // printf("h0_kq2 = \n");
-  // printr(h0_kq2_dim1, h0_kq2_dim2, h0_kq2);
-  // printf("h0_hscale = \n");
-  // printr(h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4, h0_hscale);
-
-  // printf("selfenergy = \n"); printr(nelem, selfenergy);
-  // printf("overlap = \n"); printr(nao, nao, overlap);
-  // printf("dpint = \n"); printr(nao, nao, 3, dpint);
-  // printf("qpint = \n"); printr(nao, nao, 6, qpint);
-  // printf("hamiltonian = \n"); printr(nao, nao, hamiltonian);
-
-  // get_hamiltonian<<<1,1>>>();
-  // cudaDeviceSynchronize();
 }
