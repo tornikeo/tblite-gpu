@@ -615,10 +615,36 @@ __device__ void multipole_cgto(
    call transform1(cgtoj%ang, cgtoi%ang, d3d, dpint)
    call transform1(cgtoj%ang, cgtoi%ang, q3d, qpint)
   */
-  transform0(cgtoi.ang, cgtoj.ang, s3d, overlap);
-  transform1(cgtoi.ang, cgtoj.ang, d3d, dpint);
-  transform1(cgtoi.ang, cgtoj.ang, q3d, qpint);
+  transform0(cgtoj.ang, cgtoi.ang, s3d, overlap);
+  transform1(cgtoj.ang, cgtoi.ang, d3d, dpint);
+  transform1(cgtoj.ang, cgtoi.ang, q3d, qpint);
 
+  /*! remove trace from quadrupole integrals (transfrom to spherical harmonics and back)
+   do mli = 1, msao(cgtoi%ang)
+      do mlj = 1, msao(cgtoj%ang)
+         tr = 0.5_wp * (qpint(1, mlj, mli) + qpint(3, mlj, mli) + qpint(6, mlj, mli))
+         qpint(1, mlj, mli) = 1.5_wp * qpint(1, mlj, mli) - tr
+         qpint(2, mlj, mli) = 1.5_wp * qpint(2, mlj, mli)
+         qpint(3, mlj, mli) = 1.5_wp * qpint(3, mlj, mli) - tr
+         qpint(4, mlj, mli) = 1.5_wp * qpint(4, mlj, mli)
+         qpint(5, mlj, mli) = 1.5_wp * qpint(5, mlj, mli)
+         qpint(6, mlj, mli) = 1.5_wp * qpint(6, mlj, mli) - tr
+      end do
+   end do*/
+
+  for (mli = 0; mli < msao[cgtoi.ang]; ++mli)
+  {
+    for (mlj = 0; mlj < msao[cgtoj.ang]; ++mlj)
+    {
+      tr = 0.5 * (qpint(mli, mlj, 0) + qpint(mli, mlj, 2) + qpint(mli, mlj, 5));
+      qpint(mli, mlj, 0) = 1.5 * qpint(mli, mlj, 0) - tr;
+      qpint(mli, mlj, 1) = 1.5 * qpint(mli, mlj, 1);
+      qpint(mli, mlj, 2) = 1.5 * qpint(mli, mlj, 2) - tr;
+      qpint(mli, mlj, 3) = 1.5 * qpint(mli, mlj, 3);
+      qpint(mli, mlj, 4) = 1.5 * qpint(mli, mlj, 4);
+      qpint(mli, mlj, 5) = 1.5 * qpint(mli, mlj, 5) - tr;
+    }
+  }
 }
 
 extern "C"
@@ -659,6 +685,84 @@ extern "C"
     // }
     // printf("\n");
   }
+}
+
+/*!> Shift multipole operator from Ket function (center i) to Bra function (center j),
+!> the multipole operator on the Bra function can be assembled from the lower moments
+!> on the Ket function and the displacement vector using horizontal shift rules.
+   pure subroutine shift_operator(vec, s, di, qi, dj, qj)
+      !> Displacement vector of center i and j
+      real(wp),intent(in) :: vec(:)
+      !> Overlap integral between basis functions
+      real(wp),intent(in) :: s
+      !> Dipole integral with operator on Ket function (center i)
+      real(wp),intent(in) :: di(:)
+      !> Quadrupole integral with operator on Ket function (center i)
+      real(wp),intent(in) :: qi(:)
+      !> Dipole integral with operator on Bra function (center j)
+      real(wp),intent(out) :: dj(:)
+      !> Quadrupole integral with operator on Bra function (center j)
+      real(wp),intent(out) :: qj(:)
+
+      real(wp) :: tr
+
+      ! Create dipole operator on Bra function from Ket function and shift contribution
+      ! due to monopol displacement
+      dj(1) = di(1) + vec(1)*s
+      dj(2) = di(2) + vec(2)*s
+      dj(3) = di(3) + vec(3)*s
+
+      ! For the quadrupole operator on the Bra function we first construct the shift
+      ! contribution from the dipole and monopol displacement, since we have to remove
+      ! the trace contribution from the shift and the moment integral on the Ket function
+      ! is already traceless
+      qj(1) = 2*vec(1)*di(1) + vec(1)**2*s
+      qj(3) = 2*vec(2)*di(2) + vec(2)**2*s
+      qj(6) = 2*vec(3)*di(3) + vec(3)**2*s
+      qj(2) = vec(1)*di(2) + vec(2)*di(1) + vec(1)*vec(2)*s
+      qj(4) = vec(1)*di(3) + vec(3)*di(1) + vec(1)*vec(3)*s
+      qj(5) = vec(2)*di(3) + vec(3)*di(2) + vec(2)*vec(3)*s
+      ! Now collect the trace of the shift contribution
+      tr = 0.5_wp * (qj(1) + qj(3) + qj(6))
+
+      ! Finally, assemble the quadrupole operator on the Bra function from the operator
+      ! on the Ket function and the traceless shift contribution
+      qj(1) = qi(1) + 1.5_wp * qj(1) - tr
+      qj(2) = qi(2) + 1.5_wp * qj(2)
+      qj(3) = qi(3) + 1.5_wp * qj(3) - tr
+      qj(4) = qi(4) + 1.5_wp * qj(4)
+      qj(5) = qi(5) + 1.5_wp * qj(5)
+      qj(6) = qi(6) + 1.5_wp * qj(6) - tr
+   end subroutine shift_operator*/
+template <typename T>
+__device__ inline void shift_operator(
+    const int iao, 
+    const int jao,
+    const T (&vec)[3],
+    const device_tensor2d_t<T> s,
+    const device_tensor3d_t<T> &di,
+    const device_tensor3d_t<T> &qi,
+    T (&dj)[3],
+    T (&qj)[6])
+{
+  dj[0] = di(iao, jao, 0) + vec[0] * s(iao, jao);
+  dj[1] = di(iao, jao, 1) + vec[1] * s(iao, jao);
+  dj[2] = di(iao, jao, 2) + vec[2] * s(iao, jao);
+  
+  qj[0] = 2 * vec[0] * di(iao, jao, 0) + vec[0] * vec[0] * s(iao, jao);
+  qj[2] = 2 * vec[1] * di(iao, jao, 1) + vec[1] * vec[1] * s(iao, jao);
+  qj[5] = 2 * vec[2] * di(iao, jao, 2) + vec[2] * vec[2] * s(iao, jao);
+  qj[1] = vec[0] * di(iao, jao, 1) + vec[1] * di(iao, jao, 0) + vec[0] * vec[1] * s(iao, jao);
+  qj[3] = vec[0] * di(iao, jao, 2) + vec[2] * di(iao, jao, 0) + vec[0] * vec[2] * s(iao, jao);
+  qj[4] = vec[1] * di(iao, jao, 2) + vec[2] * di(iao, jao, 1) + vec[1] * vec[2] * s(iao, jao);
+
+  const auto tr = 0.5 * (qj[0] + qj[2] + qj[5]);
+  qj[0] = qi(iao, jao, 0) + 1.5 * qj[0] - tr;
+  qj[1] = qi(iao, jao, 1) + 1.5 * qj[1];
+  qj[2] = qi(iao, jao, 2) + 1.5 * qj[2] - tr;
+  qj[3] = qi(iao, jao, 3) + 1.5 * qj[3];
+  qj[4] = qi(iao, jao, 4) + 1.5 * qj[4];
+  qj[5] = qi(iao, jao, 5) + 1.5 * qj[5] - tr;
 }
 
 __global__ void get_hamiltonian(
@@ -703,9 +807,9 @@ __global__ void get_hamiltonian(
   int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
   constexpr int msao[7] = {1, 3, 5, 7, 9, 11, 13};
   // locals
-  int i = 0, j = 0, l = 0;
-  int iat = 0, jat = 0, izp = 0, jzp = 0, itr = 0, k = 0, img = 0, inl = 0;
-  int ish = 0, jsh = 0, is = 0, js = 0, ii = 0, jj = 0, iao = 0, jao = 0, nao = 0, ij = 0;
+  // int i = 0, j = 0, l = 0;
+  // int iat = 0, jat = 0, izp = 0, jzp = 0, itr = 0, k = 0, img = 0, inl = 0;
+  // int ish = 0, jsh = 0, is = 0, js = 0, ii = 0, jj = 0, iao = 0, jao = 0, nao = 0, ij = 0;
   double rr = 0.0, r2 = 0.0, vec[3] = {0.0}, cutoff2 = 0.0, hij = 0.0, shpoly = 0.0, dtmpj[3] = {0.0}, qtmpj[6] = {0.0};
 
   // clean overlap, dpint, qpint, hamiltonian
@@ -753,18 +857,18 @@ __global__ void get_hamiltonian(
             ii = bas%iao_sh(is+ish)
             do jsh = 1, bas%nsh_id(jzp)
               jj = bas%iao_sh(js+jsh)*/
-  iat = thread_id;
+  int iat = thread_id;
   if (iat >= mol.nat)
     return;
-  izp = mol.id[iat];
-  is = bas.ish_at[iat];
-  inl = alist.inl[iat];
-  for (img = 0; img < alist.nnl[iat]; ++img)
+  int izp = mol.id[iat];
+  int is = bas.ish_at[iat];
+  int inl = alist.inl[iat];
+  for (int img = 0; img < alist.nnl[iat]; ++img)
   {
-    jat = alist.nlat[img + inl];
-    itr = alist.nltr[img + inl];
-    jzp = mol.id[jat];
-    js = bas.ish_at[jat];
+    int jat = alist.nlat[img + inl];
+    int itr = alist.nltr[img + inl];
+    int jzp = mol.id[jat];
+    int js = bas.ish_at[jat];
 
     for (int k = 0; k < 3; ++k)
     {
@@ -773,33 +877,97 @@ __global__ void get_hamiltonian(
 
     r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
     rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
-    for (ish = 0; ish < bas.nsh_id[izp]; ++ish)
+    for (int ish = 0; ish < bas.nsh_id[izp]; ++ish)
     {
-      ii = bas.iao_sh[is + ish];
-      for (jsh = 0; jsh < bas.nsh_id[jzp]; ++jsh)
+      int ii = bas.iao_sh[is + ish];
+      for (int jsh = 0; jsh < bas.nsh_id[jzp]; ++jsh)
       {
-        jj = bas.iao_sh[js + jsh];
+        int jj = bas.iao_sh[js + jsh];
         printf("ish = %d, jsh = %d, ii = %d, jj = %d\n", ish, jsh, ii, jj);
         /*call multipole_cgto(bas%cgto(jsh, jzp), bas%cgto(ish, izp), &
-                  & r2, vec, bas%intcut, stmp, dtmpi, qtmpi)
+        & r2, vec, bas%intcut, stmp, dtmpi, qtmpi)
 
-                  shpoly = (1.0_wp + h0%shpoly(ish, izp)*rr) &
-                     * (1.0_wp + h0%shpoly(jsh, jzp)*rr)
+        shpoly = (1.0_wp + h0%shpoly(ish, izp)*rr) &
+            * (1.0_wp + h0%shpoly(jsh, jzp)*rr)
 
-                  hij = 0.5_wp * (selfenergy(is+ish) + selfenergy(js+jsh)) &
-                     * h0%hscale(jsh, ish, jzp, izp) * shpoly
+        hij = 0.5_wp * (selfenergy(is+ish) + selfenergy(js+jsh)) &
+            * h0%hscale(jsh, ish, jzp, izp) * shpoly
 
-                  nao = msao(bas%cgto(jsh, jzp)%ang)*/
+        nao = msao(bas%cgto(jsh, jzp)%ang)*/
         const auto &cgtoj = bas.cgto(jsh, jzp); /* TODO: aren't these swapped? */
         const auto &cgtoi = bas.cgto(ish, izp);
         multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
-        // printf("ish = %d, jsh = %d, ii = %d, jj = %d\n", ish, jsh, ii, jj)
-        // printf("stmp = \n");
-        // stmp.print();
-        // printf("dtmpi = \n");
-        // dtmpi.print();
-        // printf("qtmpi = \n");
-        // qtmpi.print();
+
+        shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
+                 (1.0 + h0.shpoly(jzp, jsh) * rr);
+        hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
+              h0.hscale(izp, jzp, ish, jsh) * shpoly;
+
+        const int nao = msao[bas.cgto(jzp, jsh).ang];
+        /*
+        do iao = 1, msao(bas%cgto(ish, izp)%ang)
+                     do jao = 1, nao
+                        ij = jao + nao*(iao-1)
+                        call shift_operator(vec, stmp(ij), dtmpi(:, ij), qtmpi(:, ij), &
+                        & dtmpj, qtmpj)*/
+        for(int iao = 0; iao < msao[bas.cgto(izp, ish).ang]; ++iao)
+        {
+          for(int jao = 0; jao < nao; ++jao)
+          {
+            // ij = jao + nao * iao;
+            // printf("dtmpj = \n");
+            // dtmpj.print();
+            // printf("qtmpj = \n");
+            // qtmpj.print();
+            /* TODO: Implement slicing {}*/
+            shift_operator(iao, jao, vec, stmp, dtmpi, qtmpi, dtmpj, qtmpj); 
+            /*                        overlap(jj+jao, ii+iao) = overlap(jj+jao, ii+iao) &
+                           + stmp(ij)*/
+            atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
+            /*do k = 1, 3
+                           ! $omp atomic
+                           dpint(k, jj+jao, ii+iao) = dpint(k, jj+jao, ii+iao) &
+                              + dtmpi(k, ij)
+                        end do*/
+            for (int k = 0; k < 3; ++k)
+              atomicAdd(&dpint(ii + iao, jj + jao, k), dtmpi(iao, jao, k));
+            /*do k = 1, 6
+                           ! $omp atomic
+                           qpint(k, jj+jao, ii+iao) = qpint(k, jj+jao, ii+iao) &
+                              + qtmpi(k, ij)
+                        end do*/
+            for (int k = 0; k < 6; ++k)
+              atomicAdd(&qpint(ii + iao, jj + jao, k), qtmpi(iao, jao, k));
+            /*                        ! $omp atomic
+                        hamiltonian(jj+jao, ii+iao) = hamiltonian(jj+jao, ii+iao) &
+                           + stmp(ij) * hij*/
+            atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
+
+            if (iat != jat)
+            {
+              /*overlap(ii+iao, jj+jao) = overlap(ii+iao, jj+jao) + stmp(ij)*/
+              atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
+              /*do k = 1, 3
+                              ! $omp atomic
+                              dpint(k, ii+iao, jj+jao) = dpint(k, ii+iao, jj+jao) &
+                                 + dtmpj(k)
+                           end do*/
+              for (int k = 0; k < 3; ++k)
+                atomicAdd(&dpint(jj + jao, ii + iao, k), dtmpj[k]);
+              /*do k = 1, 6
+                              ! $omp atomic
+                              qpint(k, ii+iao, jj+jao) = qpint(k, ii+iao, jj+jao) &
+                                 + qtmpj(k)
+                           end do*/
+              for (int k = 0; k < 6; ++k)
+                atomicAdd(&qpint(jj + jao, ii + iao, k), qtmpj[k]);
+              /*                        ! $omp atomic
+                           hamiltonian(ii+iao, jj+jao) = hamiltonian(ii+iao, jj+jao) &
+                              + stmp(ij) * hij*/
+              atomicAdd(&hamiltonian(jj + jao, ii + iao), stmp(iao, jao) * hij);
+            }
+          }
+        }
       }
     }
   }

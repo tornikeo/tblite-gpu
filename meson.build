@@ -10,11 +10,23 @@ project(
   ],
 )
 
+build_args_common = [
+  '-ccbin', 
+  'g++',
+  '-c',
+  # The 64-bit floating-point version of atomicAdd() is only supported by devices of compute capability
+  # 6.x and higher. We put our current compute cap for an  RTX 4060
+  '-gencode=arch=compute_89,code=sm_89',
+  '-m64',
+]    
+
+
 install = not (meson.is_subproject() and get_option('default_library') == 'static')
 
 tblitegpu_lib = library(
   'tblite-gpu', 'src/main.cu', 
-  install: install
+  install: install,
+  cuda_args : build_args_common,
 )
 
 tblitegpu_inc = tblitegpu_lib.private_dir_include()
