@@ -492,26 +492,26 @@ __device__ void multipole_cgto(
   device_tensor3d_t<double> &dpint,
   device_tensor3d_t<double> &qpint)
 {
-  {
-    printf("================== MULTIPOLE_CGTO =================\n");
-    printf("bid %i tid %i: multipole_cgto\n", blockIdx.x, threadIdx.x);
-    printf("%s:%d: %s\n", __FILE__, __LINE__, __PRETTY_FUNCTION__);
-    printf("Parameters\n");
-    printf("cgtoj=\n");
-    printstruct(cgtoj);
-    printf("cgtoi=\n");
-    printstruct(cgtoi);
-    printf("r2=%f\n", r2);
-    printf("vec=%f, %f, %f\n", vec[0], vec[1], vec[2]);
-    printf("intcut=%f\n", intcut);
-    printf("overlap=\n");
-    overlap.print();
-    printf("dpint=\n");
-    dpint.print();
-    printf("qpint=\n");
-    qpint.print();
-    printf("====================================================\n");
-  }
+  // {
+  //   printf("================== MULTIPOLE_CGTO =================\n");
+  //   printf("bid %i tid %i: multipole_cgto\n", blockIdx.x, threadIdx.x);
+  //   printf("%s:%d: %s\n", __FILE__, __LINE__, __PRETTY_FUNCTION__);
+  //   printf("Parameters\n");
+  //   printf("cgtoj=\n");
+  //   printstruct(cgtoj);
+  //   printf("cgtoi=\n");
+  //   printstruct(cgtoi);
+  //   printf("r2=%f\n", r2);
+  //   printf("vec=%f, %f, %f\n", vec[0], vec[1], vec[2]);
+  //   printf("intcut=%f\n", intcut);
+  //   printf("overlap=\n");
+  //   overlap.print();
+  //   printf("dpint=\n");
+  //   dpint.print();
+  //   printf("qpint=\n");
+  //   qpint.print();
+  //   printf("====================================================\n");
+  // }
   /*integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
    integer, parameter :: mlao(0:maxl) = [1, 3, 6, 10, 15, 21, 28]
    integer, parameter :: lmap(0:maxl) = [0, 1, 4, 10, 20, 35, 56]*/
@@ -584,17 +584,17 @@ __device__ void multipole_cgto(
       {
         for (mlj = 0; mlj < mlao[cgtoj.ang]; ++mlj)
         {
-          {
-            printf("================== MULTIPOLE_CGTO INNER LOOP =================\n");
-            printf("bid %i tid %i: multipole_cgto inner loop\n", blockIdx.x, threadIdx.x);
-            printf("Parameters\n");
-            printf("mli=%d, mlj=%d\n", mli, mlj);
-            printf("rpi=%f, %f, %f\n", rpi[0], rpi[1], rpi[2]); printf("rpj=%f, %f, %f\n", rpj[0], rpj[1], rpj[2]);
-            printf("cgtoj.alpha[%d]=%f, cgtoi.alpha[%d]=%f\n", jp, cgtoj.alpha[jp], ip, cgtoi.alpha[ip]);
-            printf("lx[%i][:] = [%i, %i, %i]\n", mlj + lmap[cgtoj.ang], lx[mlj + lmap[cgtoj.ang]][0], lx[mlj + lmap[cgtoj.ang]][1], lx[mlj + lmap[cgtoj.ang]][2]);
-            printf("lx[%i][:] = [%i, %i, %i]\n", mli + lmap[cgtoi.ang], lx[mli + lmap[cgtoi.ang]][0], lx[mli + lmap[cgtoi.ang]][1], lx[mli + lmap[cgtoi.ang]][2]);
-            printf("==============================================================\n");
-          }
+          // {
+          //   printf("================== MULTIPOLE_CGTO INNER LOOP =================\n");
+          //   printf("bid %i tid %i: multipole_cgto inner loop\n", blockIdx.x, threadIdx.x);
+          //   printf("Parameters\n");
+          //   printf("mli=%d, mlj=%d\n", mli, mlj);
+          //   printf("rpi=%f, %f, %f\n", rpi[0], rpi[1], rpi[2]); printf("rpj=%f, %f, %f\n", rpj[0], rpj[1], rpj[2]);
+          //   printf("cgtoj.alpha[%d]=%f, cgtoi.alpha[%d]=%f\n", jp, cgtoj.alpha[jp], ip, cgtoi.alpha[ip]);
+          //   printf("lx[%i][:] = [%i, %i, %i]\n", mlj + lmap[cgtoj.ang], lx[mlj + lmap[cgtoj.ang]][0], lx[mlj + lmap[cgtoj.ang]][1], lx[mlj + lmap[cgtoj.ang]][2]);
+          //   printf("lx[%i][:] = [%i, %i, %i]\n", mli + lmap[cgtoi.ang], lx[mli + lmap[cgtoi.ang]][0], lx[mli + lmap[cgtoi.ang]][1], lx[mli + lmap[cgtoi.ang]][2]);
+          //   printf("==============================================================\n");
+          // }
           multipole_3d(
             rpj, rpi, 
             cgtoj.alpha[jp], cgtoi.alpha[ip], 
@@ -739,7 +739,7 @@ __device__ inline void shift_operator(
     const int iao, 
     const int jao,
     const T (&vec)[3],
-    const device_tensor2d_t<T> s,
+    const device_tensor2d_t<T> &s,
     const device_tensor3d_t<T> &di,
     const device_tensor3d_t<T> &qi,
     T (&dj)[3],
@@ -857,6 +857,7 @@ __global__ void get_hamiltonian(
             ii = bas%iao_sh(is+ish)
             do jsh = 1, bas%nsh_id(jzp)
               jj = bas%iao_sh(js+jsh)*/
+  // int printcounter = 0;
   int iat = thread_id;
   if (iat >= mol.nat)
     return;
@@ -883,7 +884,7 @@ __global__ void get_hamiltonian(
       for (int jsh = 0; jsh < bas.nsh_id[jzp]; ++jsh)
       {
         int jj = bas.iao_sh[js + jsh];
-        printf("ish = %d, jsh = %d, ii = %d, jj = %d\n", ish, jsh, ii, jj);
+        // printf("ish = %d, jsh = %d, ii = %d, jj = %d\n", ish, jsh, ii, jj);
         /*call multipole_cgto(bas%cgto(jsh, jzp), bas%cgto(ish, izp), &
         & r2, vec, bas%intcut, stmp, dtmpi, qtmpi)
 
@@ -896,8 +897,26 @@ __global__ void get_hamiltonian(
         nao = msao(bas%cgto(jsh, jzp)%ang)*/
         const auto &cgtoj = bas.cgto(jsh, jzp); /* TODO: aren't these swapped? */
         const auto &cgtoi = bas.cgto(ish, izp);
-        multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
-
+        // Debug
+        // {
+        //   printf("==================== DEBUG ====================\n");
+        //   printf("cgtoj = bas.cgto(%i, %i)\n", jsh, jzp);
+        //   printf("cgtoj = \n");
+        //   printstruct(cgtoj);
+        //   printf("cgtoi = bas.cgto(%i, %i)\n", ish, izp);
+        //   printf("cgtoi = \n");
+        //   printstruct(cgtoi);
+        //   multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
+        //   printf("stmp = \n");
+        //   stmp.print();
+        //   printf("dtmpi = \n");
+        //   dtmpi.print();
+        //   printf("qtmpi = \n");
+        //   qtmpi.print();
+        //   printf("===================== DEBUG ====================\n");
+        // }
+        // if (printcounter++ > 5) return;
+        // assert(false);
         shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
                  (1.0 + h0.shpoly(jzp, jsh) * rr);
         hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
@@ -970,6 +989,18 @@ __global__ void get_hamiltonian(
         }
       }
     }
+  }
+
+  {
+    printf("================== DEBUG %i %i ==================\n", blockIdx.x, threadIdx.x);
+    printf("overlap = \n");
+    overlap.print();
+    printf("dpint = \n");
+    dpint.print();
+    printf("qpint = \n");
+    qpint.print();
+    printf("hamiltonian = \n");
+    hamiltonian.print();
   }
 }
 
