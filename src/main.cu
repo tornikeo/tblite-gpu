@@ -765,7 +765,7 @@ __device__ inline void shift_operator(
   qj[5] = qi(iao, jao, 5) + 1.5 * qj[5] - tr;
 }
 
-__global__ void get_hamiltonian(
+__global__ void get_hamiltonian_interatomic(
     const structure_type mol,
     const tensor2d_t<double> trans,
     const adjacency_list alist,
@@ -777,9 +777,9 @@ __global__ void get_hamiltonian(
     tensor3d_t<double> qpint,
     tensor2d_t<double> hamiltonian)
 {
+  printf("================= KERNEL I =================\n");
 
   {
-    printf("================= KERNEL =================\n");
     // printf("mol = \n");
     // printstruct(mol);
     // printf("trans = \n");
@@ -811,17 +811,6 @@ __global__ void get_hamiltonian(
   // int iat = 0, jat = 0, izp = 0, jzp = 0, itr = 0, k = 0, img = 0, inl = 0;
   // int ish = 0, jsh = 0, is = 0, js = 0, ii = 0, jj = 0, iao = 0, jao = 0, nao = 0, ij = 0;
   double rr = 0.0, r2 = 0.0, vec[3] = {0.0}, cutoff2 = 0.0, hij = 0.0, shpoly = 0.0, dtmpj[3] = {0.0}, qtmpj[6] = {0.0};
-
-  // clean overlap, dpint, qpint, hamiltonian
-  if (thread_id == 0)
-  {
-    // printf("C: Cleaning overlap, dpint, qpint, hamiltonian\n");
-    overlap.fill(0.0);
-    dpint.fill(0.0);
-    qpint.fill(0.0);
-    hamiltonian.fill(0.0);
-  }
-  __syncthreads();
 
   // allocate stmp, dtmpi, qtmpi
   device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]);
@@ -1015,20 +1004,79 @@ __global__ void get_hamiltonian(
       }
     }
   }
-  if(threadIdx.x == 1)
-  {
-    printf("================== DEBUG %i %i ==================\n", blockIdx.x, threadIdx.x);
-    printf("overlap = \n");
-    overlap.print();
-    printf("dpint = \n");
-    dpint.print();
-    printf("qpint = \n");
-    qpint.print();
-    printf("hamiltonian = \n");
-    hamiltonian.print();
-  }
+  
+  // if(threadIdx.x == 1)
+  // {
+  //   printf("================== DEBUG %i %i ==================\n", blockIdx.x, threadIdx.x);
+  //   printf("overlap = \n");
+  //   overlap.print();
+  //   printf("dpint = \n");
+  //   dpint.print();
+  //   printf("qpint = \n");
+  //   qpint.print();
+  //   printf("hamiltonian = \n");
+  //   hamiltonian.print();
+  // }
+
+  printf("================= KERNEL I END =================\n");
 }
 
+__global__ void get_hamiltonian_intraatomic(
+  const structure_type mol,
+  const tensor2d_t<double> trans,
+  const adjacency_list alist,
+  const basis_type bas,
+  const tb_hamiltonian h0,
+  const tensor1d_t<double> selfenergy,
+  tensor2d_t<double> overlap,
+  tensor3d_t<double> dpint,
+  tensor3d_t<double> qpint,
+  tensor2d_t<double> hamiltonian)
+{
+  printf("================= KERNEL II =================\n");
+  // printf("mol = \n");
+  // printstruct(mol);
+  // printf("trans = \n");
+  // trans.print();
+  // printf("alist = \n");
+  // printstruct(alist);
+  // printf("bas = \n");
+  // printstruct(bas);
+  // printf("h0 = \n");
+  // printstruct(h0);
+  // printf("selfenergy = \n");
+  // selfenergy.print();
+  // printf("overlap = \n");
+  // overlap.print();
+  // printf("dpint = \n");
+  // dpint.print();
+  // printf("qpint = \n");
+  // qpint.print();
+  // printf("hamiltonian = \n");
+  // hamiltonian.print();
+  // constants
+  // integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
+
+
+  int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+  constexpr int msao[7] = {1, 3, 5, 7, 9, 11, 13};
+  // locals
+  // int i = 0, j = 0, l = 0;
+  // int iat = 0, jat = 0, izp = 0, jzp = 0, itr = 0, k = 0, img = 0, inl = 0;
+  // int ish = 0, jsh = 0, is = 0, js = 0, ii = 0, jj = 0, iao = 0, jao = 0, nao = 0, ij = 0;
+  double rr = 0.0, r2 = 0.0, vec[3] = {0.0}, cutoff2 = 0.0, hij = 0.0, shpoly = 0.0, dtmpj[3] = {0.0}, qtmpj[6] = {0.0};
+
+
+  // allocate stmp, dtmpi, qtmpi
+  device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]);
+  stmp.fill(0.0);
+  device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3);
+  dtmpi.fill(0.0);
+  device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6);
+  qtmpi.fill(0.0);
+
+
+}
 extern "C" void cuda_get_hamiltonian_kernel_(
     int nao,
     int nelem,
@@ -1238,74 +1286,91 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       bas.cgto.to_device()};
 
   const tb_hamiltonian d_h0{
-      // tensor2d_t(h0_selfenergy, h0_selfenergy_dim1, h0_selfenergy_dim2).to_device(),
       h0.selfenergy.to_device(),
-      // tensor2d_t(h0_kcn, h0_kcn_dim1, h0_kcn_dim2).to_device(),
       h0.kcn.to_device(),
-      // tensor2d_t(h0_kq1, h0_kq1_dim1, h0_kq1_dim2).to_device(),
       h0.kq1.to_device(),
-      // tensor2d_t(h0_kq2, h0_kq2_dim1, h0_kq2_dim2).to_device(),
       h0.kq2.to_device(),
-      // tensor4d_t(h0_hscale, h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4).to_device(),
       h0.hscale.to_device(),
-      // tensor2d_t(h0_shpoly, h0_shpoly_dim1, h0_shpoly_dim2).to_device(),
       h0.shpoly.to_device(),
-      // tensor1d_t(h0_rad, h0_rad_dim1).to_device(),
       h0.rad.to_device(),
-      // tensor2d_t(h0_refocc, h0_refocc_dim1, h0_refocc_dim2).to_device()};
       h0.refocc.to_device()};
 
   const tensor1d_t<double> d_selfenergy = tensor1d_t<double>(selfenergy, nelem).to_device();
-
   tensor2d_t<double> d_overlap = tensor2d_t<double>(overlap, nao, nao).to_device();
   tensor3d_t<double> d_dpint = tensor3d_t<double>(dpint, nao, nao, 3).to_device();
   tensor3d_t<double> d_qpint = tensor3d_t<double>(qpint, nao, nao, 6).to_device();
   tensor2d_t<double> d_hamiltonian = tensor2d_t<double>(hamiltonian, nao, nao).to_device();
-
-  // Start timing
-  cudaEvent_t start, stop;
-
+  
+  /* Zero out the arrays before the kernel starts */
+  d_overlap.memset(static_cast<double>(0.0));
+  d_dpint.memset(static_cast<double>(0.0));
+  d_qpint.memset(static_cast<double>(0.0));
+  d_hamiltonian.memset(static_cast<double>(0.0));
+  
   // We need to set heap size for CUDA, to use malloc inside kernel
-  CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1 * 1024 * 1024););
-
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-  cudaEventRecord(start);
-
-  // Launch kernel
-  get_hamiltonian<<<1, mol.nat>>>(
-      d_mol,
-      d_trans,
-      d_alist,
-      d_basis,
-      d_h0,
-      d_selfenergy,
-      d_overlap,
-      d_dpint,
-      d_qpint,
-      d_hamiltonian);
-
-  // Stop timing
-  cudaEventRecord(stop);
-  cudaEventSynchronize(stop);
-
-  // Check for errors
-  cudaError_t err = cudaGetLastError();
-  if (err != cudaSuccess)
-  {
-    printf("CUDA Error: %s\n", cudaGetErrorString(err));
-    exit(EXIT_FAILURE);
-  }
-
-  // Calculate elapsed time
+  ////////////////////////////////////////////
+  // Launch kernel part I
+  ////////////////////////////////////////////
+  cudaEvent_t start, stop;
   float milliseconds = 0;
-  cudaEventElapsedTime(&milliseconds, start, stop);
-  printf("Kernel execution time: %f ms\n", milliseconds);
 
-  // Clean up events
-  cudaEventDestroy(start);
-  cudaEventDestroy(stop);
+  {
 
+    CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1 * 1024 * 1024););
+    cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
+
+    get_hamiltonian_interatomic<<<1, mol.nat>>>(
+    d_mol,
+    d_trans,
+    d_alist,
+    d_basis,
+    d_h0,
+    d_selfenergy,
+    d_overlap,
+    d_dpint,
+    d_qpint,
+    d_hamiltonian);
+
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaGetLastError());
+    
+    // Stop timing
+    cudaEventRecord(stop); cudaEventSynchronize(stop);
+    
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("Kernel part I execution time: %f ms\n", milliseconds);
+    
+    cudaEventDestroy(start); cudaEventDestroy(stop);
+  }
+  
+  ////////////////////////////////////////////
+  // Launch kernel part II
+  ////////////////////////////////////////////
+  {
+    cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
+    get_hamiltonian_intraatomic<<<1, mol.nat>>>(
+        d_mol,
+        d_trans,
+        d_alist,
+        d_basis,
+        d_h0,
+        d_selfenergy,
+        d_overlap,
+        d_dpint,
+        d_qpint,
+        d_hamiltonian);
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaGetLastError());
+
+    // Stop timing
+    cudaEventRecord(stop); cudaEventSynchronize(stop);
+
+    // Calculate elapsed time
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("Kernel part II execution time: %f ms\n", milliseconds);
+    // Clean up events
+    cudaEventDestroy(start); cudaEventDestroy(stop);
+  }
   printf("Exiting prematurely. Remove this once the kernel is working.\n");
   exit(EXIT_FAILURE);
 

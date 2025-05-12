@@ -113,6 +113,11 @@ public:
     }
   }
 
+  __host__ inline void memset(const T &value)
+  {
+    cudaMemset(data, value, dim1 * sizeof(T));
+  }
+
   // to_device function
   tensor1d_t<T> to_device() const
   {
@@ -201,6 +206,11 @@ public:
     {
       data[i] = value;
     }
+  }
+
+  __host__ inline void memset(const T &value)
+  {
+    cudaMemset(data, value, dim1 * dim2 * sizeof(T));
   }
 
   tensor2d_t(const tensor2d_t &other)
@@ -355,6 +365,11 @@ public:
     }
   }
 
+  __host__ inline void memset(const T &value)
+  {
+    cudaMemset(data, value, dim1 * dim2 * dim3 * sizeof(T));
+  }
+
   tensor3d_t(const tensor3d_t &other)
   {
     this->dim1 = other.dim1;
@@ -499,6 +514,11 @@ public:
     {
       data[i] = value;
     }
+  }
+
+  __host__ inline void memset(const T &value)
+  {
+    cudaMemset(data, value, dim1 * dim2 * dim3 * dim4 * sizeof(T));
   }
 
   tensor4d_t(const tensor4d_t &other)
