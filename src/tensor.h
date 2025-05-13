@@ -18,6 +18,10 @@ public:
   bool is_device; // Flag to indicate if the data is on the device
   tensor1d_t() : dim1(0), data(nullptr), is_device(false) {}
   tensor1d_t(T *data, int dim1) : data(data), dim1(dim1), is_device(false) {}
+  __device__ __host__ inline const int size() const
+  {
+    return dim1;
+  }
 
   __device__ __host__ inline const T &operator[](int i) const
   {
@@ -57,18 +61,6 @@ public:
     return device_tensor;
   }
 
-  // to_host function
-  tensor1d_t<T> to_host() const
-  {
-    assert(is_device && "Cannot convert a host tensor to host");
-    tensor1d_t<T> host_tensor;
-    host_tensor.is_device = false;
-    host_tensor.dim1 = dim1;
-    host_tensor.data = (T *)malloc(dim1 * sizeof(T));
-    cudaMemcpy(host_tensor.data, this->data, dim1 * sizeof(T), cudaMemcpyDeviceToHost);
-    return host_tensor;
-  }
-
   __host__ __device__ inline void print() const
   {
     printf("(%i)\n", dim1);
@@ -98,6 +90,11 @@ public:
     this->dim2 = dim2;
     this->is_device = false;
     this->data = data;
+  }
+
+  __device__ __host__ inline const int size() const
+  {
+    return dim1 * dim2;
   }
 
   __device__ __host__ inline T &operator()(int i, int j)
@@ -140,17 +137,6 @@ public:
     return device_tensor;
   }
 
-  // to_host function
-  tensor2d_t<T> to_host() const
-  {
-    tensor2d_t<T> host_tensor;
-    host_tensor.is_device = false;
-    host_tensor.dim1 = dim1;
-    host_tensor.dim2 = dim2;
-    host_tensor.data = (T *)malloc(dim1 * dim2 * sizeof(T));
-    cudaMemcpy(host_tensor.data, this->data, dim1 * dim2 * sizeof(T), cudaMemcpyDeviceToHost);
-    return host_tensor;
-  }
 
   __host__ __device__ inline void print() const
   {
@@ -187,6 +173,11 @@ public:
     this->dim3 = dim3;
     this->is_device = false;
     this->data = data;
+  }
+
+  __device__ __host__ inline const int size() const
+  {
+    return dim1 * dim2 * dim3;
   }
 
   __device__ __host__ inline T &operator()(int i, int j, int k)
@@ -228,18 +219,6 @@ public:
     tensor3d_t<T> device_tensor(data, dim1, dim2, dim3);
     device_tensor.is_device = true;
     return device_tensor;
-  }
-  // to_host function
-  tensor3d_t<T> to_host() const
-  {
-    tensor3d_t<T> host_tensor;
-    host_tensor.is_device = false;
-    host_tensor.dim1 = dim1;
-    host_tensor.dim2 = dim2;
-    host_tensor.dim3 = dim3;
-    host_tensor.data = (T *)malloc(dim1 * dim2 * dim3 * sizeof(T));
-    CUDA_CHECK(cudaMemcpy(host_tensor.data, this->data, dim1 * dim2 * dim3 * sizeof(T), cudaMemcpyDeviceToHost));
-    return host_tensor;
   }
 
   __host__ __device__ inline void print() const
@@ -285,6 +264,11 @@ public:
     this->data = data;
   }
   
+  __device__ __host__ inline const int size() const
+  {
+    return dim1 * dim2 * dim3 * dim4;
+  }
+
   __device__ __host__ inline T &operator()(int i, int j, int k, int l)
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3 && l >= 0 && l < dim4);
@@ -324,19 +308,6 @@ public:
     tensor4d_t<T> device_tensor(data, dim1, dim2, dim3, dim4);
     device_tensor.is_device = true;
     return device_tensor;
-  }
-
-  tensor4d_t<T> to_host() const
-  {
-    tensor4d_t<T> host_tensor;
-    host_tensor.is_device = false;
-    host_tensor.dim1 = dim1;
-    host_tensor.dim2 = dim2;
-    host_tensor.dim3 = dim3;
-    host_tensor.dim4 = dim4;
-    host_tensor.data = (T *)malloc(dim1 * dim2 * dim3 * dim4 * sizeof(T));
-    CUDA_CHECK(cudaMemcpy(host_tensor.data, this->data, dim1 * dim2 * dim3 * dim4 * sizeof(T), cudaMemcpyDeviceToHost));
-    return host_tensor;
   }
 
   __host__ __device__ inline void print() const

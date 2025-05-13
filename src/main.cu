@@ -777,9 +777,6 @@ __global__ void get_hamiltonian_inter_atomic(
     tensor3d_t<double> qpint,
     tensor2d_t<double> hamiltonian)
 {
-  printf("================= KERNEL I =================\n");
-  printf("bas.cgto(0,0) = \n");
-  printstruct(bas.cgto(0, 0));
   {
     // printf("mol = \n");
     // printstruct(mol);
@@ -828,23 +825,7 @@ __global__ void get_hamiltonian_inter_atomic(
     // printf("qtmpi = \n");
     // qtmpi.print();
   }
-  /*do iat = 1, mol%nat
-      izp = mol%id(iat)
-      is = bas%ish_at(iat)
-      inl = alist%inl(iat)
-      do img = 1, alist%nnl(iat)
-        jat = alist%nlat(img+inl)
-        itr = alist%nltr(img+inl)
-        jzp = mol%id(jat)
-        js = bas%ish_at(jat)
-        vec(:) = mol%xyz(:, iat) - mol%xyz(:, jat) - trans(:, itr)
-        r2 = vec(1)**2 + vec(2)**2 + vec(3)**2
-        rr = sqrt(sqrt(r2) / (h0%rad(jzp) + h0%rad(izp)))
-        do ish = 1, bas%nsh_id(izp)
-            ii = bas%iao_sh(is+ish)
-            do jsh = 1, bas%nsh_id(jzp)
-              jj = bas%iao_sh(js+jsh)*/
-  // int printcounter = 0;
+
   int iat = thread_id;
   if (iat >= mol.nat)
     return;
@@ -1000,21 +981,6 @@ __global__ void get_hamiltonian_inter_atomic(
       }
     }
   }
-  
-  if(threadIdx.x == 1)
-  {
-    printf("================== DEBUG %i %i ==================\n", blockIdx.x, threadIdx.x);
-    printf("overlap = \n");
-    overlap.print();
-    printf("dpint = \n");
-    dpint.print();
-    printf("qpint = \n");
-    qpint.print();
-    printf("hamiltonian = \n");
-    hamiltonian.print();
-  }
-
-  printf("================= KERNEL I END =================\n");
 }
 
 __global__ void get_hamiltonian_intra_atomic(
@@ -1029,75 +995,13 @@ __global__ void get_hamiltonian_intra_atomic(
   tensor3d_t<double> qpint,
   tensor2d_t<double> hamiltonian)
 {
-  printf("================= KERNEL II =================\n");
-  printf("bas.cgto(0,0) = \n");
-  printstruct(bas.cgto(0, 0));
-  // printf("mol = \n");
-  // printstruct(mol);
-  // printf("trans = \n");
-  // trans.print();
-  // printf("alist = \n");
-  // printstruct(alist);
-  // printf("bas = \n");
-  // printstruct(bas);
-  // printf("h0 = \n");
-  // printstruct(h0);
-  // printf("selfenergy = \n");
-  // selfenergy.print();
-  // printf("overlap = \n");
-  // overlap.print();
-  // printf("dpint = \n");
-  // dpint.print();
-  // printf("qpint = \n");
-  // qpint.print();
-  // printf("hamiltonian = \n");
-  // hamiltonian.print();
-  // constants
-  // integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
-
-
   const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
   constexpr int msao[7] = {1, 3, 5, 7, 9, 11, 13};
 
-  // allocate stmp, dtmpi, qtmpi
   device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]); stmp.fill(0.0);
   device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3); dtmpi.fill(0.0);
   device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6); qtmpi.fill(0.0);
 
-  if (thread_id == 0)
-  {
-    printf("overlap = \n");
-    overlap.print();
-    printf("dpint = \n");
-    dpint.print();
-    printf("qpint = \n");
-    qpint.print();
-    printf("hamiltonian = \n");
-    hamiltonian.print();
-  }
-
-  /*      ! $omp parallel do schedule(runtime) default(none) &
-  ! $omp shared(mol, bas, trans, cutoff2, overlap, dpint, qpint, hamiltonian, h0, selfenergy) &
-  ! $omp private(iat, izp, itr, is, ish, jsh, ii, jj, iao, jao, nao, ij) &
-  ! $omp private(r2, vec, stmp, dtmpi, qtmpi, hij, shpoly, rr)
-  do iat = 1, mol%nat
-      izp = mol%id(iat)
-      is = bas%ish_at(iat)
-      vec(:) = 0.0_wp
-      r2 = 0.0_wp
-      rr = sqrt(sqrt(r2) / (h0%rad(izp) + h0%rad(izp)))
-      do ish = 1, bas%nsh_id(izp)
-        ii = bas%iao_sh(is+ish)
-        do jsh = 1, bas%nsh_id(izp)
-            jj = bas%iao_sh(is+jsh)
-            call multipole_cgto(bas%cgto(jsh, izp), bas%cgto(ish, izp), &
-            & r2, vec, bas%intcut, stmp, dtmpi, qtmpi)
-
-            shpoly = (1.0_wp + h0%shpoly(ish, izp)*rr) &
-              * (1.0_wp + h0%shpoly(jsh, izp)*rr)
-
-            hij = 0.5_wp * (selfenergy(is+ish) + selfenergy(is+jsh)) &
-              * shpoly*/
   int iat = thread_id;
   if (iat >= mol.nat) return;
   int izp = mol.id[iat];
@@ -1111,47 +1015,27 @@ __global__ void get_hamiltonian_intra_atomic(
     for(int jsh = 0; jsh < bas.nsh_id[izp]; ++jsh)
     {
       int jj = bas.iao_sh[is + jsh];
-      // multipole_cgto(bas.cgto(izp, jsh), bas.cgto(izp, ish), 
-      //   r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
+      multipole_cgto(bas.cgto(izp, jsh), bas.cgto(izp, ish), 
+        r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
       double shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
         (1.0 + h0.shpoly(izp, jsh) * rr);
       double hij = 0.5 * (selfenergy[is + ish] + selfenergy[is + jsh]) *
         shpoly;
-        // if(threadIdx.x == 1)
-        // {
-          //   printf("we choose bas.cgto(%i, %i) = ", izp, jsh);
-          //   printf("bas.cgto has shape (%i, %i)\n", bas.cgto.dim1, bas.cgto.dim2);
-          // }
-      if(threadIdx.x == 1)
-      {
-        printf("bas.cgto(%i, %i) = \n", izp, jsh);
-        printf("bas.cgto = \n");
-        printstruct(bas.cgto(izp, jsh));
-      }
       const int nao = msao[bas.cgto(izp, jsh).ang];
       for(int iao = 0; iao < msao[bas.cgto(izp, ish).ang]; ++iao)
       {
         for(int jao = 0; jao < nao; ++jao)
         {
-          if (threadIdx.x == 1) {
-            printf("bas.cgto(izp, jsh).ang = %d, bas.cgto(izp, ish).ang = %d\n", bas.cgto(izp, jsh).ang, bas.cgto(izp, ish).ang);
-            printf("nao = %d, iao = %d, jao = %d\n", nao, iao, jao);
-            printf("overlap(%d + %d, %d + %d) += stmp(%d, %d)\n", ii + iao, jj + jao, iao, jao, iao, jao);
-            overlap(ii + iao, jj + jao) += stmp(iao, jao);
-            printf("dpint(%d, %d, :) += dtmpi(%d, %d, :)\n", ii + iao, jj + jao, iao, jao);
-            for(int k = 0; k < 3; ++k)
-            dpint(ii + iao, jj + jao, k) += dtmpi(iao, jao, k);
-            printf("qpint(%d, %d, :) += qtmpi(%d, %d, :)\n", ii + iao, jj + jao, iao, jao);
-            for(int k = 0; k < 6; ++k)
-            qpint(ii + iao, jj + jao, k) += qtmpi(iao, jao, k);
-            printf("hamiltonian(%d, %d) += stmp(%d, %d) * hij\n", ii + iao, jj + jao, iao, jao);
-            hamiltonian(ii + iao, jj + jao) += stmp(iao, jao) * hij;
-          }
+          overlap(ii + iao, jj + jao) += stmp(iao, jao);
+          for(int k = 0; k < 3; ++k)
+          dpint(ii + iao, jj + jao, k) += dtmpi(iao, jao, k);
+          for(int k = 0; k < 6; ++k)
+          qpint(ii + iao, jj + jao, k) += qtmpi(iao, jao, k);
+          hamiltonian(ii + iao, jj + jao) += stmp(iao, jao) * hij;
         }
       }
     }
   }
-  printf("================== KERNEL II END =================\n");
 }
 extern "C" void cuda_get_hamiltonian_kernel_(
     int nao,
@@ -1270,15 +1154,15 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   // printstruct(mol);
   // printstruct(h0);
   
-  printf("bas.cgto has shape (%i, %i)\n", bas.cgto.dim1, bas.cgto.dim2);
-  for (int i = 0; i < bas.cgto.dim1; i++)
-  {
-    for(int j = 0; j < bas.cgto.dim2; j++)
-    {
-      printf("cgto(%d, %d) = \n", i, j);
-      printstruct(bas.cgto(i, j));
-    }
-  }
+  // printf("bas.cgto has shape (%i, %i)\n", bas.cgto.dim1, bas.cgto.dim2);
+  // for (int i = 0; i < bas.cgto.dim1; i++)
+  // {
+  //   for(int j = 0; j < bas.cgto.dim2; j++)
+  //   {
+  //     printf("cgto(%d, %d) = \n", i, j);
+  //     printstruct(bas.cgto(i, j));
+  //   }
+  // }
   
 
   const structure_type d_mol{
@@ -1395,6 +1279,20 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     printf("Kernel part II execution time: %f ms\n", milliseconds);
     cudaEventDestroy(start); cudaEventDestroy(stop);
   }
-  printf("Exiting prematurely. Remove this once the kernel is working.\n");
-  exit(EXIT_FAILURE);
+  // printf("d_overlap = \n");
+  // d_overlap.print();
+  // printf("d_dpint = \n");
+  // d_dpint.print();
+  // printf("d_qpint = \n");
+  // d_qpint.print();
+  // printf("d_hamiltonian = \n");
+  // d_hamiltonian.print();
+
+  memcpy(overlap, d_overlap.data, d_overlap.size() * sizeof(double));
+  memcpy(dpint, d_dpint.data, d_dpint.size() * sizeof(double));
+  memcpy(qpint, d_qpint.data, d_qpint.size() * sizeof(double));
+  memcpy(hamiltonian, d_hamiltonian.data, d_hamiltonian.size() * sizeof(double));
+  
+  // printf("Exiting prematurely. Remove this once the kernel is working.\n");
+  // exit(EXIT_FAILURE);
 }
