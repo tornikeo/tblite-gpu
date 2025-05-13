@@ -15,9 +15,19 @@ class tensor1d_t
 public:
   const int dim1;
   T *data;
-  bool is_device; // Flag to indicate if the data is on the device
-  tensor1d_t() : dim1(0), data(nullptr), is_device(false) {}
-  tensor1d_t(T *data, int dim1) : data(data), dim1(dim1), is_device(false) {}
+  tensor1d_t() : dim1(0), data(nullptr) {}
+  tensor1d_t(T *data, int dim1) : dim1(dim1) {
+    if( dim1 <= 0 )
+    {
+      fprintf(stderr, "Error: tensor1d_t: invalid dimension (%i)\n", dim1); 
+      exit(1);
+    }
+    T *data_new = nullptr;
+    CUDA_CHECK(cudaMallocManaged(&data_new, size() * sizeof(T)));
+    CUDA_CHECK(cudaMemcpy((void *)data_new, data, size() * sizeof(T), cudaMemcpyHostToDevice));
+    this->data = data_new;
+  }
+  
   __device__ __host__ inline int size() const
   {
     return dim1;
@@ -48,19 +58,6 @@ public:
     CUDA_CHECK(cudaMemset(this->data, value, dim1 * sizeof(T)));
   }
 
-  // to_device function
-  tensor1d_t<T> to_device() const
-  {
-    assert(!is_device && "Cannot convert a device tensor to device");
-    T* data = nullptr;
-    const int dim1 = this->dim1;
-    CUDA_CHECK(cudaMallocManaged(&data, dim1 * sizeof(T)));
-    CUDA_CHECK(cudaMemcpy((void *)data, this->data, dim1 * sizeof(T), cudaMemcpyHostToDevice));
-    tensor1d_t<T> device_tensor(data, dim1);
-    device_tensor.is_device = true;
-    return device_tensor;
-  }
-
   __host__ __device__ inline void print() const
   {
     printf("(%i)\n", dim1);
@@ -80,12 +77,20 @@ class tensor2d_t
 public:
   const int dim1, dim2;
   T *data;
-  bool is_device; // Flag to indicate if the data is on the device
+  tensor2d_t() : dim1(0), dim2(0), data(nullptr) {}
 
-  tensor2d_t() : dim1(0), dim2(0), data(nullptr), is_device(false) {}
-
-  tensor2d_t(T *data, int dim1, int dim2) : dim1(dim1), dim2(dim2), is_device(false), data(data) {}
-
+  tensor2d_t(T *data, int dim1, int dim2) : dim1(dim1), dim2(dim2) {
+    if( dim1 <= 0 || dim2 <= 0 )
+    {
+      fprintf(stderr, "Error: tensor2d_t: invalid dimensions (%i, %i)\n", dim1, dim2); 
+      exit(1);
+    }
+    T *data_new = nullptr;
+    CUDA_CHECK(cudaMallocManaged(&data_new, size() * sizeof(T)));
+    CUDA_CHECK(cudaMemcpy((void *)data_new, data, size() * sizeof(T), cudaMemcpyHostToDevice));
+    this->data = data_new;
+  }
+  
   __device__ __host__ inline int size() const
   {
     return dim1 * dim2;
@@ -117,21 +122,6 @@ public:
     CUDA_CHECK(cudaMemset(data, value, dim1 * dim2 * sizeof(T)));
   }
 
-  // to_device function
-  tensor2d_t<T> to_device() const
-  {
-    assert(!is_device && "Cannot convert a device tensor to device");
-    T* data = nullptr;
-    const int dim1 = this->dim1;
-    const int dim2 = this->dim2;
-    CUDA_CHECK(cudaMallocManaged(&data, dim1 * dim2 * sizeof(T)));
-    CUDA_CHECK(cudaMemcpy((void *)data, this->data, dim1 * dim2 * sizeof(T), cudaMemcpyHostToDevice));
-    tensor2d_t<T> device_tensor(data, dim1, dim2);
-    device_tensor.is_device = true;
-    return device_tensor;
-  }
-
-
   __host__ __device__ inline void print() const
   {
     printf("(%i, %i)\n", dim1, dim2);
@@ -156,11 +146,20 @@ class tensor3d_t
 public:
   const int dim1, dim2, dim3;
   T *data;
-  bool is_device; // Flag to indicate if the data is on the device
 
-  tensor3d_t() : dim1(0), dim2(0), dim3(0), data(nullptr), is_device(false) {}
+  tensor3d_t() : dim1(0), dim2(0), dim3(0), data(nullptr) {}
 
-  tensor3d_t(T *data, int dim1, int dim2, int dim3) : dim1(dim1), dim2(dim2), dim3(dim3), is_device(false), data(data) {}
+  tensor3d_t(T *data, int dim1, int dim2, int dim3) : dim1(dim1), dim2(dim2), dim3(dim3) {
+    if( dim1 <= 0 || dim2 <= 0 || dim3 <= 0 )
+    {
+      fprintf(stderr, "Error: tensor3d_t: invalid dimensions (%i, %i, %i)\n", dim1, dim2, dim3); 
+      exit(1);
+    }
+    T *data_new = nullptr;
+    CUDA_CHECK(cudaMallocManaged(&data_new, size() * sizeof(T)));
+    CUDA_CHECK(cudaMemcpy((void *)data_new, data, size() * sizeof(T), cudaMemcpyHostToDevice));
+    this->data = data_new;
+  }
 
   __device__ __host__ inline int size() const
   {
@@ -193,21 +192,6 @@ public:
     CUDA_CHECK(cudaMemset(data, value, dim1 * dim2 * dim3 * sizeof(T)));
   }
 
-  // to_device function
-  tensor3d_t<T> to_device() const
-  {
-    assert(!is_device && "Cannot convert a device tensor to device");
-    T* data = nullptr;
-    const int dim1 = this->dim1;
-    const int dim2 = this->dim2;
-    const int dim3 = this->dim3;
-    CUDA_CHECK(cudaMallocManaged(&data, dim1 * dim2 * dim3 * sizeof(T)));
-    CUDA_CHECK(cudaMemcpy((void *)data, this->data, dim1 * dim2 * dim3 * sizeof(T), cudaMemcpyHostToDevice));
-    tensor3d_t<T> device_tensor(data, dim1, dim2, dim3);
-    device_tensor.is_device = true;
-    return device_tensor;
-  }
-
   __host__ __device__ inline void print() const
   {
     printf("(%i, %i, %i)\n", dim1, dim2, dim3);
@@ -237,12 +221,21 @@ class tensor4d_t
 public:
   const int dim1, dim2, dim3, dim4;
   T *data;
-  bool is_device; // Flag to indicate if the data is on the device
 
-  tensor4d_t() : dim1(0), dim2(0), dim3(0), dim4(0), data(nullptr), is_device(false) {}
+  tensor4d_t() : dim1(0), dim2(0), dim3(0), dim4(0), data(nullptr) {}
 
-  tensor4d_t(T *data, int dim1, int dim2, int dim3, int dim4) : dim1(dim1), dim2(dim2), dim3(dim3), dim4(dim4), is_device(false), data(data) {}
-  
+  tensor4d_t(T *data, int dim1, int dim2, int dim3, int dim4) : dim1(dim1), dim2(dim2), dim3(dim3), dim4(dim4) {
+    if( dim1 <= 0 || dim2 <= 0 || dim3 <= 0 || dim4 <= 0 )
+    {
+      fprintf(stderr, "Error: tensor4d_t: invalid dimensions (%i, %i, %i, %i)\n", dim1, dim2, dim3, dim4); 
+      exit(1);
+    }
+    T *data_new = nullptr;
+    CUDA_CHECK(cudaMallocManaged(&data_new, size() * sizeof(T)));
+    CUDA_CHECK(cudaMemcpy((void *)data_new, data, size() * sizeof(T), cudaMemcpyHostToDevice));
+    this->data = data_new;
+  }
+
   __device__ __host__ inline int size() const
   {
     return dim1 * dim2 * dim3 * dim4;
@@ -272,21 +265,6 @@ public:
   __host__ inline void memset(const T &value)
   {
     CUDA_CHECK(cudaMemset(data, value, dim1 * dim2 * dim3 * dim4 * sizeof(T)));
-  }
-
-  tensor4d_t<T> to_device() const
-  {
-    assert(!is_device && "Cannot convert a device tensor to device");
-    T* data = nullptr;
-    const int dim1 = this->dim1;
-    const int dim2 = this->dim2;
-    const int dim3 = this->dim3;
-    const int dim4 = this->dim4;
-    CUDA_CHECK(cudaMallocManaged(&data, dim1 * dim2 * dim3 * dim4 * sizeof(T)));
-    CUDA_CHECK(cudaMemcpy((void *)data, this->data, dim1 * dim2 * dim3 * dim4 * sizeof(T), cudaMemcpyHostToDevice));
-    tensor4d_t<T> device_tensor(data, dim1, dim2, dim3, dim4);
-    device_tensor.is_device = true;
-    return device_tensor;
   }
 
   __host__ __device__ inline void print() const
