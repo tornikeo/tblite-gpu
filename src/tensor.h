@@ -13,85 +13,11 @@ template <typename T>
 class tensor1d_t
 {
 public:
-  int dim1;
+  const int dim1;
   T *data;
   bool is_device; // Flag to indicate if the data is on the device
   tensor1d_t() : dim1(0), data(nullptr), is_device(false) {}
-  tensor1d_t(const T *data, int dim1)
-  {
-    this->dim1 = dim1;
-    this->is_device = false;
-    this->data = (T *)malloc(dim1 * sizeof(T));
-    for (int i = 0; i < dim1; ++i)
-    {
-      this->data[i] = data[i];
-    }
-  }
-  
-  __host__ __device__
-  ~tensor1d_t()
-  {
-    if (is_device)
-    {
-      cudaFree(data);
-    }
-    else
-    {
-      free(data);
-    }
-  }
-
-  tensor1d_t(const tensor1d_t &other)
-  {
-    this->dim1 = other.dim1;
-    this->is_device = other.is_device;
-    if (is_device)
-    {
-      cudaMalloc(&this->data, dim1 * sizeof(T));
-      cudaMemcpy(this->data, other.data, dim1 * sizeof(T), cudaMemcpyDeviceToDevice);
-    }
-    else
-    {
-      this->data = (T *)malloc(dim1 * sizeof(T));
-      for (int i = 0; i < dim1; ++i)
-      {
-        this->data[i] = other.data[i];
-      }
-    }
-  }
-
-  tensor1d_t &operator=(const tensor1d_t &other)
-  {
-    if (this != &other)
-    {
-      if (is_device)
-      {
-        cudaFree(this->data);
-      }
-      else
-      {
-        free(this->data);
-      }
-
-      this->dim1 = other.dim1;
-      this->is_device = other.is_device;
-
-      if (is_device)
-      {
-        cudaMalloc(&this->data, dim1 * sizeof(T));
-        cudaMemcpy(this->data, other.data, dim1 * sizeof(T), cudaMemcpyDeviceToDevice);
-      }
-      else
-      {
-        this->data = (T *)malloc(dim1 * sizeof(T));
-        for (int i = 0; i < dim1; ++i)
-        {
-          this->data[i] = other.data[i];
-        }
-      }
-    }
-    return *this;
-  }
+  tensor1d_t(T *data, int dim1) : data(data), dim1(dim1), is_device(false) {}
 
   __device__ __host__ inline const T &operator[](int i) const
   {
@@ -115,18 +41,19 @@ public:
 
   __host__ inline void memset(const T &value)
   {
-    cudaMemset(data, value, dim1 * sizeof(T));
+    CUDA_CHECK(cudaMemset(this->data, value, dim1 * sizeof(T)));
   }
 
   // to_device function
   tensor1d_t<T> to_device() const
   {
     assert(!is_device && "Cannot convert a device tensor to device");
-    tensor1d_t<T> device_tensor;
+    T* data = nullptr;
+    const int dim1 = this->dim1;
+    CUDA_CHECK(cudaMallocManaged(&data, dim1 * sizeof(T)));
+    CUDA_CHECK(cudaMemcpy((void *)data, this->data, dim1 * sizeof(T), cudaMemcpyHostToDevice));
+    tensor1d_t<T> device_tensor(data, dim1);
     device_tensor.is_device = true;
-    device_tensor.dim1 = dim1;
-    cudaMalloc(&device_tensor.data, dim1 * sizeof(T));
-    cudaMemcpy(device_tensor.data, this->data, dim1 * sizeof(T), cudaMemcpyHostToDevice);
     return device_tensor;
   }
 
@@ -165,28 +92,12 @@ public:
 
   tensor2d_t() : dim1(0), dim2(0), data(nullptr), is_device(false) {}
 
-  tensor2d_t(const T *data, int dim1, int dim2)
+  tensor2d_t(T *data, int dim1, int dim2)
   {
     this->dim1 = dim1;
     this->dim2 = dim2;
     this->is_device = false;
-    this->data = (T *)malloc(dim1 * dim2 * sizeof(T));
-    for (int i = 0; i < dim1 * dim2; ++i)
-    {
-      this->data[i] = data[i];
-    }
-  }
-
-  ~tensor2d_t()
-  {
-    if (is_device)
-    {
-      cudaFree(data);
-    }
-    else
-    {
-      free(data);
-    }
+    this->data = data;
   }
 
   __device__ __host__ inline T &operator()(int i, int j)
@@ -212,18 +123,20 @@ public:
 
   __host__ inline void memset(const T &value)
   {
-    cudaMemset(data, value, dim1 * dim2 * sizeof(T));
+    CUDA_CHECK(cudaMemset(data, value, dim1 * dim2 * sizeof(T)));
   }
 
   // to_device function
   tensor2d_t<T> to_device() const
   {
-    tensor2d_t<T> device_tensor;
+    assert(!is_device && "Cannot convert a device tensor to device");
+    T* data = nullptr;
+    const int dim1 = this->dim1;
+    const int dim2 = this->dim2;
+    CUDA_CHECK(cudaMallocManaged(&data, dim1 * dim2 * sizeof(T)));
+    CUDA_CHECK(cudaMemcpy((void *)data, this->data, dim1 * dim2 * sizeof(T), cudaMemcpyHostToDevice));
+    tensor2d_t<T> device_tensor(data, dim1, dim2);
     device_tensor.is_device = true;
-    device_tensor.dim1 = dim1;
-    device_tensor.dim2 = dim2;
-    cudaMalloc(&device_tensor.data, dim1 * dim2 * sizeof(T));
-    cudaMemcpy(device_tensor.data, this->data, dim1 * dim2 * sizeof(T), cudaMemcpyHostToDevice);
     return device_tensor;
   }
 
@@ -267,29 +180,13 @@ public:
 
   tensor3d_t() : dim1(0), dim2(0), dim3(0), data(nullptr), is_device(false) {}
 
-  tensor3d_t(const T *data, int dim1, int dim2, int dim3)
+  tensor3d_t(T *data, int dim1, int dim2, int dim3)
   {
     this->dim1 = dim1;
     this->dim2 = dim2;
     this->dim3 = dim3;
     this->is_device = false;
-    this->data = (T *)malloc(dim1 * dim2 * dim3 * sizeof(T));
-    for (int i = 0; i < dim1 * dim2 * dim3; ++i)
-    {
-      this->data[i] = data[i];
-    }
-  }
-
-  ~tensor3d_t()
-  {
-    if (is_device)
-    {
-      cudaFree(data);
-    }
-    else
-    {
-      free(data);
-    }
+    this->data = data;
   }
 
   __device__ __host__ inline T &operator()(int i, int j, int k)
@@ -315,19 +212,21 @@ public:
 
   __host__ inline void memset(const T &value)
   {
-    cudaMemset(data, value, dim1 * dim2 * dim3 * sizeof(T));
+    CUDA_CHECK(cudaMemset(data, value, dim1 * dim2 * dim3 * sizeof(T)));
   }
 
   // to_device function
   tensor3d_t<T> to_device() const
   {
-    tensor3d_t<T> device_tensor;
+    assert(!is_device && "Cannot convert a device tensor to device");
+    T* data = nullptr;
+    const int dim1 = this->dim1;
+    const int dim2 = this->dim2;
+    const int dim3 = this->dim3;
+    CUDA_CHECK(cudaMallocManaged(&data, dim1 * dim2 * dim3 * sizeof(T)));
+    CUDA_CHECK(cudaMemcpy((void *)data, this->data, dim1 * dim2 * dim3 * sizeof(T), cudaMemcpyHostToDevice));
+    tensor3d_t<T> device_tensor(data, dim1, dim2, dim3);
     device_tensor.is_device = true;
-    device_tensor.dim1 = dim1;
-    device_tensor.dim2 = dim2;
-    device_tensor.dim3 = dim3;
-    cudaMalloc(&device_tensor.data, dim1 * dim2 * dim3 * sizeof(T));
-    cudaMemcpy(device_tensor.data, this->data, dim1 * dim2 * dim3 * sizeof(T), cudaMemcpyHostToDevice);
     return device_tensor;
   }
   // to_host function
@@ -339,7 +238,7 @@ public:
     host_tensor.dim2 = dim2;
     host_tensor.dim3 = dim3;
     host_tensor.data = (T *)malloc(dim1 * dim2 * dim3 * sizeof(T));
-    cudaMemcpy(host_tensor.data, this->data, dim1 * dim2 * dim3 * sizeof(T), cudaMemcpyDeviceToHost);
+    CUDA_CHECK(cudaMemcpy(host_tensor.data, this->data, dim1 * dim2 * dim3 * sizeof(T), cudaMemcpyDeviceToHost));
     return host_tensor;
   }
 
@@ -376,18 +275,14 @@ public:
 
   tensor4d_t() : dim1(0), dim2(0), dim3(0), dim4(0), data(nullptr), is_device(false) {}
 
-  tensor4d_t(const T *data, int dim1, int dim2, int dim3, int dim4)
+  tensor4d_t(T *data, int dim1, int dim2, int dim3, int dim4)
   {
     this->dim1 = dim1;
     this->dim2 = dim2;
     this->dim3 = dim3;
     this->dim4 = dim4;
     this->is_device = false;
-    this->data = (T *)malloc(dim1 * dim2 * dim3 * dim4 * sizeof(T));
-    for (int i = 0; i < dim1 * dim2 * dim3 * dim4; ++i)
-    {
-      this->data[i] = data[i];
-    }
+    this->data = data;
   }
   
   __device__ __host__ inline T &operator()(int i, int j, int k, int l)
@@ -413,34 +308,24 @@ public:
 
   __host__ inline void memset(const T &value)
   {
-    cudaMemset(data, value, dim1 * dim2 * dim3 * dim4 * sizeof(T));
-  }
-
-
-  ~tensor4d_t()
-  {
-    if (is_device)
-    {
-      cudaFree(data);
-    }
-    else
-    {
-      free(data);
-    }
+    CUDA_CHECK(cudaMemset(data, value, dim1 * dim2 * dim3 * dim4 * sizeof(T)));
   }
 
   tensor4d_t<T> to_device() const
   {
-    tensor4d_t<T> device_tensor;
+    assert(!is_device && "Cannot convert a device tensor to device");
+    T* data = nullptr;
+    const int dim1 = this->dim1;
+    const int dim2 = this->dim2;
+    const int dim3 = this->dim3;
+    const int dim4 = this->dim4;
+    CUDA_CHECK(cudaMallocManaged(&data, dim1 * dim2 * dim3 * dim4 * sizeof(T)));
+    CUDA_CHECK(cudaMemcpy((void *)data, this->data, dim1 * dim2 * dim3 * dim4 * sizeof(T), cudaMemcpyHostToDevice));
+    tensor4d_t<T> device_tensor(data, dim1, dim2, dim3, dim4);
     device_tensor.is_device = true;
-    device_tensor.dim1 = dim1;
-    device_tensor.dim2 = dim2;
-    device_tensor.dim3 = dim3;
-    device_tensor.dim4 = dim4;
-    cudaMalloc(&device_tensor.data, dim1 * dim2 * dim3 * dim4 * sizeof(T));
-    cudaMemcpy(device_tensor.data, this->data, dim1 * dim2 * dim3 * dim4 * sizeof(T), cudaMemcpyHostToDevice);
     return device_tensor;
   }
+
   tensor4d_t<T> to_host() const
   {
     tensor4d_t<T> host_tensor;
@@ -450,7 +335,7 @@ public:
     host_tensor.dim3 = dim3;
     host_tensor.dim4 = dim4;
     host_tensor.data = (T *)malloc(dim1 * dim2 * dim3 * dim4 * sizeof(T));
-    cudaMemcpy(host_tensor.data, this->data, dim1 * dim2 * dim3 * dim4 * sizeof(T), cudaMemcpyDeviceToHost);
+    CUDA_CHECK(cudaMemcpy(host_tensor.data, this->data, dim1 * dim2 * dim3 * dim4 * sizeof(T), cudaMemcpyDeviceToHost));
     return host_tensor;
   }
 

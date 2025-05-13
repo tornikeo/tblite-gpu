@@ -27,19 +27,19 @@ typedef struct {
     const int nid;
     const int nbd;
     // const int *id;  const int id_dim1;
-    const tensor1d_t<int> id; // 1D array of atom IDs
+    const tensor1d_t<const int> id; // 1D array of atom IDs
     // const int *num; const int num_dim1;
-    const tensor1d_t<int> num; // 1D array of atom numbers
+    const tensor1d_t<const int> num; // 1D array of atom numbers
     // const double *xyz; const int xyz_dim1; const int xyz_dim2;
-    const tensor2d_t<double> xyz; // 2D array of atom coordinates
+    const tensor2d_t<const double> xyz; // 2D array of atom coordinates
     const int uhf;
     const double charge;
     // const double *lattice; const int lattice_dim1; const int lattice_dim2;
-    const tensor2d_t<double> lattice; // 2D array of lattice vectors
+    const tensor2d_t<const double> lattice; // 2D array of lattice vectors
     // const int *periodic; const int periodic_dim1;
-    const tensor1d_t<int> periodic; // 1D array of periodicity flags
+    const tensor1d_t<const int> periodic; // 1D array of periodicity flags
     // const int *bond; const int bond_dim1; const int bond_dim2;
-    const tensor2d_t<int> bond; // 2D array of bond information
+    const tensor2d_t<const int> bond; // 2D array of bond information
 } structure_type;
 
 __host__ __device__
@@ -99,10 +99,10 @@ void printstruct(const structure_type &str)
 }
 
 typedef struct {
-  const tensor1d_t<int> inl; // Offset index in the neighbour map (dynamic array)
-  const tensor1d_t<int> nnl; // Number of neighbours for each atom (dynamic array)
-  const tensor1d_t<int> nlat; // Index of the neighbouring atom (dynamic array)
-  const tensor1d_t<int> nltr; // Cell index of the neighbouring atom (dynamic array)
+  const tensor1d_t<const int> inl; // Offset index in the neighbour map (dynamic array)
+  const tensor1d_t<const int> nnl; // Number of neighbours for each atom (dynamic array)
+  const tensor1d_t<const int> nlat; // Index of the neighbouring atom (dynamic array)
+  const tensor1d_t<const int> nltr; // Cell index of the neighbouring atom (dynamic array)
 } adjacency_list;
 
 __device__ __host__ 
@@ -135,10 +135,10 @@ inline void printstruct(const adjacency_list &adj)
 }
 
 typedef struct {
-    int ang;               // Angular momentum of this basis function
-    int nprim;             // Contraction length of this basis function
-    double alpha[MAXG];    // Exponent of the primitive Gaussian functions
-    double coeff[MAXG];    // Contraction coefficients of the primitive Gaussian functions
+  const int ang;               // Angular momentum of this basis function
+  const int nprim;             // Contraction length of this basis function
+  const double alpha[MAXG];    // Exponent of the primitive Gaussian functions
+  const double coeff[MAXG];    // Contraction coefficients of the primitive Gaussian functions
 } cgto_type;
 
 __host__ __device__
@@ -194,24 +194,15 @@ typedef struct {
   const int nao;
   const double intcut;
   const double min_alpha;
-  // const int *nsh_id; const int nsh_id_dim1;
-  const tensor1d_t<int> nsh_id; // 1D array of shell IDs
-  // const int *nsh_at; const int nsh_at_dim1;
-  const tensor1d_t<int> nsh_at; // 1D array of atom IDs for each shell
-  // const int *nao_sh; const int nao_sh_dim1;
-  const tensor1d_t<int> nao_sh; // 1D array of shell indices for each AO
-  // const int *iao_sh; const int iao_sh_dim1;
-  const tensor1d_t<int> iao_sh; // 1D array of shell indices for each AO
-  // const int *ish_at; const int ish_at_dim1;
-  const tensor1d_t<int> ish_at; // 1D array of atom indices for each shell
-  // const int *ao2at; const int ao2at_dim1;
-  const tensor1d_t<int> ao2at; // 1D array of atom IDs for each AO
-  // const int *ao2sh; const int ao2sh_dim1;
-  const tensor1d_t<int> ao2sh; // 1D array of shell indices for each AO
-  // const int *sh2at; const int sh2at_dim1;
-  const tensor1d_t<int> sh2at; // 1D array of atom IDs for each shell
-  // const cgto_type *cgto; const int cgto_dim1; const int cgto_dim2;
-  const tensor2d_t<cgto_type> cgto; // 2D array of Gaussian-type orbitals
+  const tensor1d_t<const int> nsh_id; // 1D array of shell IDs
+  const tensor1d_t<const int> nsh_at; // 1D array of atom IDs for each shell
+  const tensor1d_t<const int> nao_sh; // 1D array of shell indices for each AO
+  const tensor1d_t<const int> iao_sh; // 1D array of shell indices for each AO
+  const tensor1d_t<const int> ish_at; // 1D array of atom indices for each shell
+  const tensor1d_t<const int> ao2at; // 1D array of atom IDs for each AO
+  const tensor1d_t<const int> ao2sh; // 1D array of shell indices for each AO
+  const tensor1d_t<const int> sh2at; // 1D array of atom IDs for each shell
+  const tensor2d_t<const cgto_type> cgto; // 2D array of Gaussian-type orbitals
 } basis_type;
 
 __host__ __device__
@@ -311,14 +302,14 @@ typedef struct {
   // const double *shpoly; const int shpoly_dim1; const int shpoly_dim2;
   // const double *rad; const int rad_dim1;
   // const double *refocc; const int refocc_dim1; const int refocc_dim2;
-  const tensor2d_t<double> selfenergy; // 2D array of self-energy
-  const tensor2d_t<double> kcn; // 2D array of kcn
-  const tensor2d_t<double> kq1; // 2D array of kq1
-  const tensor2d_t<double> kq2; // 2D array of kq2
-  const tensor4d_t<double> hscale; // 4D array of hscale
-  const tensor2d_t<double> shpoly; // 2D array of shpoly
-  const tensor1d_t<double> rad; // 1D array of radial functions
-  const tensor2d_t<double> refocc; // 2D array of reference occupations
+  const tensor2d_t<const double> selfenergy; // 2D array of self-energy
+  const tensor2d_t<const double> kcn; // 2D array of kcn
+  const tensor2d_t<const double> kq1; // 2D array of kq1
+  const tensor2d_t<const double> kq2; // 2D array of kq2
+  const tensor4d_t<const double> hscale; // 4D array of hscale
+  const tensor2d_t<const double> shpoly; // 2D array of shpoly
+  const tensor1d_t<const double> rad; // 1D array of radial functions
+  const tensor2d_t<const double> refocc; // 2D array of reference occupations
 } tb_hamiltonian;
 
 __host__ __device__

@@ -9,7 +9,7 @@
 
 
 template <typename T>
-__device__ inline void transform0(int lj, int li, const device_tensor2d_t<T> &cart, device_tensor2d_t<T> &sphr)
+__device__ inline void transform0(const int lj, const int li, const device_tensor2d_t<T> &cart, device_tensor2d_t<T> &sphr)
 {
   constexpr T s3 = 1.7320508075688772; // sqrt(3)
   constexpr T s3_4 = 0.6123724356957945; // sqrt(3)/2
@@ -765,20 +765,21 @@ __device__ inline void shift_operator(
   qj[5] = qi(iao, jao, 5) + 1.5 * qj[5] - tr;
 }
 
-__global__ void get_hamiltonian_interatomic(
+__global__ void get_hamiltonian_inter_atomic(
     const structure_type mol,
-    const tensor2d_t<double> trans,
+    const tensor2d_t<const double> trans,
     const adjacency_list alist,
     const basis_type bas,
     const tb_hamiltonian h0,
-    const tensor1d_t<double> selfenergy,
+    const tensor1d_t<const double> selfenergy,
     tensor2d_t<double> overlap,
     tensor3d_t<double> dpint,
     tensor3d_t<double> qpint,
     tensor2d_t<double> hamiltonian)
 {
   printf("================= KERNEL I =================\n");
-
+  printf("bas.cgto(0,0) = \n");
+  printstruct(bas.cgto(0, 0));
   {
     // printf("mol = \n");
     // printstruct(mol);
@@ -881,8 +882,8 @@ __global__ void get_hamiltonian_interatomic(
             * h0%hscale(jsh, ish, jzp, izp) * shpoly
 
         nao = msao(bas%cgto(jsh, jzp)%ang)*/
-        const auto &cgtoj = bas.cgto(jsh, jzp); /* TODO: aren't these swapped? */
-        const auto &cgtoi = bas.cgto(ish, izp);
+        const auto &cgtoj = bas.cgto(jzp, jsh); /* TODO: aren't these swapped? */
+        const auto &cgtoi = bas.cgto(izp, ish);
         multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
         // Debug
         {
@@ -1016,19 +1017,21 @@ __global__ void get_hamiltonian_interatomic(
   printf("================= KERNEL I END =================\n");
 }
 
-__global__ void get_hamiltonian_intraatomic(
+__global__ void get_hamiltonian_intra_atomic(
   const structure_type mol,
-  const tensor2d_t<double> trans,
+  const tensor2d_t<const double> trans,
   const adjacency_list alist,
   const basis_type bas,
   const tb_hamiltonian h0,
-  const tensor1d_t<double> selfenergy,
+  const tensor1d_t<const double> selfenergy,
   tensor2d_t<double> overlap,
   tensor3d_t<double> dpint,
   tensor3d_t<double> qpint,
   tensor2d_t<double> hamiltonian)
 {
   printf("================= KERNEL II =================\n");
+  printf("bas.cgto(0,0) = \n");
+  printstruct(bas.cgto(0, 0));
   // printf("mol = \n");
   // printstruct(mol);
   // printf("trans = \n");
@@ -1055,15 +1058,11 @@ __global__ void get_hamiltonian_intraatomic(
 
   const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
   constexpr int msao[7] = {1, 3, 5, 7, 9, 11, 13};
-  double rr = 0.0, r2 = 0.0, vec[3] = {0.0}, cutoff2 = 0.0, hij = 0.0, shpoly = 0.0, dtmpj[3] = {0.0}, qtmpj[6] = {0.0};
 
   // allocate stmp, dtmpi, qtmpi
-  device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]);
-  stmp.fill(0.0);
-  device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3);
-  dtmpi.fill(0.0);
-  device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6);
-  qtmpi.fill(0.0);
+  device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]); stmp.fill(0.0);
+  device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3); dtmpi.fill(0.0);
+  device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6); qtmpi.fill(0.0);
 
   if (thread_id == 0)
   {
@@ -1075,6 +1074,82 @@ __global__ void get_hamiltonian_intraatomic(
     qpint.print();
     printf("hamiltonian = \n");
     hamiltonian.print();
+  }
+
+  /*      ! $omp parallel do schedule(runtime) default(none) &
+  ! $omp shared(mol, bas, trans, cutoff2, overlap, dpint, qpint, hamiltonian, h0, selfenergy) &
+  ! $omp private(iat, izp, itr, is, ish, jsh, ii, jj, iao, jao, nao, ij) &
+  ! $omp private(r2, vec, stmp, dtmpi, qtmpi, hij, shpoly, rr)
+  do iat = 1, mol%nat
+      izp = mol%id(iat)
+      is = bas%ish_at(iat)
+      vec(:) = 0.0_wp
+      r2 = 0.0_wp
+      rr = sqrt(sqrt(r2) / (h0%rad(izp) + h0%rad(izp)))
+      do ish = 1, bas%nsh_id(izp)
+        ii = bas%iao_sh(is+ish)
+        do jsh = 1, bas%nsh_id(izp)
+            jj = bas%iao_sh(is+jsh)
+            call multipole_cgto(bas%cgto(jsh, izp), bas%cgto(ish, izp), &
+            & r2, vec, bas%intcut, stmp, dtmpi, qtmpi)
+
+            shpoly = (1.0_wp + h0%shpoly(ish, izp)*rr) &
+              * (1.0_wp + h0%shpoly(jsh, izp)*rr)
+
+            hij = 0.5_wp * (selfenergy(is+ish) + selfenergy(is+jsh)) &
+              * shpoly*/
+  int iat = thread_id;
+  if (iat >= mol.nat) return;
+  int izp = mol.id[iat];
+  int is = bas.ish_at[iat];
+  double vec[3] = {0.0};
+  double r2 = 0.0;
+  double rr = sqrt(sqrt(r2) / (h0.rad[izp] + h0.rad[izp]));
+  for(int ish = 0; ish < bas.nsh_id[izp]; ++ish)
+  {
+    int ii = bas.iao_sh[is + ish];
+    for(int jsh = 0; jsh < bas.nsh_id[izp]; ++jsh)
+    {
+      int jj = bas.iao_sh[is + jsh];
+      // multipole_cgto(bas.cgto(izp, jsh), bas.cgto(izp, ish), 
+      //   r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
+      double shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
+        (1.0 + h0.shpoly(izp, jsh) * rr);
+      double hij = 0.5 * (selfenergy[is + ish] + selfenergy[is + jsh]) *
+        shpoly;
+        // if(threadIdx.x == 1)
+        // {
+          //   printf("we choose bas.cgto(%i, %i) = ", izp, jsh);
+          //   printf("bas.cgto has shape (%i, %i)\n", bas.cgto.dim1, bas.cgto.dim2);
+          // }
+      if(threadIdx.x == 1)
+      {
+        printf("bas.cgto(%i, %i) = \n", izp, jsh);
+        printf("bas.cgto = \n");
+        printstruct(bas.cgto(izp, jsh));
+      }
+      const int nao = msao[bas.cgto(izp, jsh).ang];
+      for(int iao = 0; iao < msao[bas.cgto(izp, ish).ang]; ++iao)
+      {
+        for(int jao = 0; jao < nao; ++jao)
+        {
+          if (threadIdx.x == 1) {
+            printf("bas.cgto(izp, jsh).ang = %d, bas.cgto(izp, ish).ang = %d\n", bas.cgto(izp, jsh).ang, bas.cgto(izp, ish).ang);
+            printf("nao = %d, iao = %d, jao = %d\n", nao, iao, jao);
+            printf("overlap(%d + %d, %d + %d) += stmp(%d, %d)\n", ii + iao, jj + jao, iao, jao, iao, jao);
+            overlap(ii + iao, jj + jao) += stmp(iao, jao);
+            printf("dpint(%d, %d, :) += dtmpi(%d, %d, :)\n", ii + iao, jj + jao, iao, jao);
+            for(int k = 0; k < 3; ++k)
+            dpint(ii + iao, jj + jao, k) += dtmpi(iao, jao, k);
+            printf("qpint(%d, %d, :) += qtmpi(%d, %d, :)\n", ii + iao, jj + jao, iao, jao);
+            for(int k = 0; k < 6; ++k)
+            qpint(ii + iao, jj + jao, k) += qtmpi(iao, jao, k);
+            printf("hamiltonian(%d, %d) += stmp(%d, %d) * hij\n", ii + iao, jj + jao, iao, jao);
+            hamiltonian(ii + iao, jj + jao) += stmp(iao, jao) * hij;
+          }
+        }
+      }
+    }
   }
   printf("================== KERNEL II END =================\n");
 }
@@ -1194,6 +1269,17 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   // printstruct(alist);
   // printstruct(mol);
   // printstruct(h0);
+  
+  printf("bas.cgto has shape (%i, %i)\n", bas.cgto.dim1, bas.cgto.dim2);
+  for (int i = 0; i < bas.cgto.dim1; i++)
+  {
+    for(int j = 0; j < bas.cgto.dim2; j++)
+    {
+      printf("cgto(%d, %d) = \n", i, j);
+      printstruct(bas.cgto(i, j));
+    }
+  }
+  
 
   const structure_type d_mol{
       mol.nat,
@@ -1208,7 +1294,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       mol.periodic.to_device(),
       mol.bond.to_device()};
 
-  const tensor2d_t<double> d_trans = tensor2d_t<double>(trans, trans_dim1, trans_dim2).to_device();
+  const tensor2d_t<const double> d_trans = tensor2d_t<const double>(trans, trans_dim1, trans_dim2).to_device();
 
   const adjacency_list d_alist{
       alist.inl.to_device(),
@@ -1242,7 +1328,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       h0.rad.to_device(),
       h0.refocc.to_device()};
 
-  const tensor1d_t<double> d_selfenergy = tensor1d_t<double>(selfenergy, nelem).to_device();
+  const tensor1d_t<const double> d_selfenergy = tensor1d_t<const double>(selfenergy, nelem).to_device();
   tensor2d_t<double> d_overlap = tensor2d_t<double>(overlap, nao, nao).to_device();
   tensor3d_t<double> d_dpint = tensor3d_t<double>(dpint, nao, nao, 3).to_device();
   tensor3d_t<double> d_qpint = tensor3d_t<double>(qpint, nao, nao, 6).to_device();
@@ -1261,10 +1347,10 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   float milliseconds = 0;
 
   {
-    CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1 * 1024 * 1024););
+    CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1024 * sizeof(double)));
     cudaDeviceSynchronize();
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
-    get_hamiltonian_interatomic<<<1, mol.nat>>>(
+    get_hamiltonian_inter_atomic<<<1, mol.nat>>>(
       d_mol,
       d_trans,
       d_alist,
@@ -1289,7 +1375,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   ////////////////////////////////////////////
   {
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
-    get_hamiltonian_intraatomic<<<1, mol.nat>>>(
+    get_hamiltonian_intra_atomic<<<1, mol.nat>>>(
         d_mol,
         d_trans,
         d_alist,
