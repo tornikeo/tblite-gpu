@@ -912,19 +912,19 @@ __global__ void get_hamiltonian_inter_atomic(
             /*overlap(jj+jao, ii+iao) = overlap(jj+jao, ii+iao) &
                            + stmp(ij)*/
 
-            if (threadIdx.x == 1)
-            {
-              // printf("stmp = \n");
-              // stmp.print();
-              // printf("dtmpi = \n");
-              // dtmpi.print();
-              // printf("qtmpi = \n");
-              // qtmpi.print();
-              // printf("dtmpj = \n");
-              printf("before iat != jat; iat = %i, jat = %i; stmp = \n", iat, jat);
-              stmp.print();
-              printf("also, ii + iao = %d, jj + jao = %d, iao = %d, jao = %d\n", ii + iao, jj + jao, iao, jao);
-            }
+            // if (threadIdx.x == 1)
+            // {
+            //   // printf("stmp = \n");
+            //   // stmp.print();
+            //   // printf("dtmpi = \n");
+            //   // dtmpi.print();
+            //   // printf("qtmpi = \n");
+            //   // qtmpi.print();
+            //   // printf("dtmpj = \n");
+            //   printf("before iat != jat; iat = %i, jat = %i; stmp = \n", iat, jat);
+            //   stmp.print();
+            //   printf("also, ii + iao = %d, jj + jao = %d, iao = %d, jao = %d\n", ii + iao, jj + jao, iao, jao);
+            // }
             atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
             /*do k = 1, 3
                            ! $omp atomic
@@ -950,12 +950,12 @@ __global__ void get_hamiltonian_inter_atomic(
             if (iat != jat) 
             {
               /*overlap(ii+iao, jj+jao) = overlap(ii+iao, jj+jao) + stmp(ij)*/
-              if (threadIdx.x == 1)
-              {
-                printf("inside iat != jat (%i != %i); stmp = \n", iat, jat);
-                stmp.print();
-                printf("also, ii + iao = %d, jj + jao = %d, iao = %d, jao = %d\n", ii + iao, jj + jao, iao, jao);
-              }
+              // if (threadIdx.x == 1)
+              // {
+              //   printf("inside iat != jat (%i != %i); stmp = \n", iat, jat);
+              //   stmp.print();
+              //   printf("also, ii + iao = %d, jj + jao = %d, iao = %d, jao = %d\n", ii + iao, jj + jao, iao, jao);
+              // }
               atomicAdd(&overlap(jj + jao, ii + iao), stmp(iao, jao));
               /*do k = 1, 3
                               ! $omp atomic
@@ -1037,6 +1037,15 @@ __global__ void get_hamiltonian_intra_atomic(
     }
   }
 }
+
+void setCudaMallocHeapSizeOnce(size_t size) {
+  static bool isHeapSizeSet = false; // Tracks if the limit has already been set
+  if (!isHeapSizeSet) {
+      CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, size));
+      isHeapSizeSet = true; // Mark as set
+  }
+}
+
 extern "C" void cuda_get_hamiltonian_kernel_(
     int nao,
     int nelem,
@@ -1050,9 +1059,9 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     const double *mol_xyz, int mol_xyz_dim1, int mol_xyz_dim2,
     const int mol_uhf,
     const double mol_charge,
-    const double *mol_lattice, int mol_lattice_dim1, int mol_lattice_dim2,
-    const int *mol_periodic, int mol_periodic_dim1,
-    const int *mol_bond, int mol_bond_dim1, int mol_bond_dim2,
+    // const double *mol_lattice, int mol_lattice_dim1, int mol_lattice_dim2,
+    // const int *mol_periodic, int mol_periodic_dim1,
+    // const int *mol_bond, int mol_bond_dim1, int mol_bond_dim2,
 
     /* trans for lattice */
     const double *trans, const int trans_dim1, const int trans_dim2,
@@ -1109,15 +1118,13 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       tensor1d_t(alist_nltr, alist_nltr_dim1)};
 
   const structure_type mol{
-      mol_nat, mol_nid, mol_nbd,
-      tensor1d_t(mol_id, mol_id_dim1),
-      tensor1d_t(mol_num, mol_num_dim1),
-      tensor2d_t(mol_xyz, mol_xyz_dim1, mol_xyz_dim2),
-      mol_uhf,
-      mol_charge,
-      tensor2d_t(mol_lattice, mol_lattice_dim1, mol_lattice_dim2),
-      tensor1d_t(mol_periodic, mol_periodic_dim1),
-      tensor2d_t(mol_bond, mol_bond_dim1, mol_bond_dim2)};
+    mol_nat, mol_nid, mol_nbd,
+    tensor1d_t(mol_id, mol_id_dim1),
+    tensor1d_t(mol_num, mol_num_dim1),
+    tensor2d_t(mol_xyz, mol_xyz_dim1, mol_xyz_dim2),
+    mol_uhf,
+    mol_charge,
+  };
 
   const tb_hamiltonian h0{
       tensor2d_t(h0_selfenergy, h0_selfenergy_dim1, h0_selfenergy_dim2),
@@ -1165,64 +1172,69 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   // }
   
 
-  const structure_type d_mol{
-      mol.nat,
-      mol.nid,
-      mol.nbd,
-      mol.id.to_device(),
-      mol.num.to_device(),
-      mol.xyz.to_device(),
-      mol.uhf,
-      mol.charge,
-      mol.lattice.to_device(),
-      mol.periodic.to_device(),
-      mol.bond.to_device()};
+  // const structure_type d_mol{
+  //     mol.nat,
+  //     mol.nid,
+  //     mol.nbd,
+  //     mol.id,
+  //     mol.num.to_device(),
+  //     mol.xyz.to_device(),
+  //     mol.uhf,
+  //     mol.charge,
+  //     mol.lattice.to_device(),
+  //     mol.periodic.to_device(),
+  //     mol.bond.to_device()};
 
-  const tensor2d_t<const double> d_trans = tensor2d_t<const double>(trans, trans_dim1, trans_dim2).to_device();
+  const tensor2d_t<const double> trans_ten(trans, trans_dim1, trans_dim2);
 
-  const adjacency_list d_alist{
-      alist.inl.to_device(),
-      alist.nnl.to_device(),
-      alist.nlat.to_device(),
-      alist.nltr.to_device()};
+  // const adjacency_list d_alist{
+  //     alist.inl.to_device(),
+  //     alist.nnl.to_device(),
+  //     alist.nlat.to_device(),
+  //     alist.nltr.to_device()};
 
-  const basis_type d_basis{
-      bas_maxl,
-      bas_nsh,
-      bas_nao,
-      bas_intcut,
-      bas_min_alpha,
-      bas.nsh_id.to_device(),
-      bas.nsh_at.to_device(),
-      bas.nao_sh.to_device(),
-      bas.iao_sh.to_device(),
-      bas.ish_at.to_device(),
-      bas.ao2at.to_device(),
-      bas.ao2sh.to_device(),
-      bas.sh2at.to_device(),
-      bas.cgto.to_device()};
+  // const basis_type d_basis{
+  //     bas_maxl,
+  //     bas_nsh,
+  //     bas_nao,
+  //     bas_intcut,
+  //     bas_min_alpha,
+  //     bas.nsh_id.to_device(),
+  //     bas.nsh_at.to_device(),
+  //     bas.nao_sh.to_device(),
+  //     bas.iao_sh.to_device(),
+  //     bas.ish_at.to_device(),
+  //     bas.ao2at.to_device(),
+  //     bas.ao2sh.to_device(),
+  //     bas.sh2at.to_device(),
+  //     bas.cgto.to_device()};
 
-  const tb_hamiltonian d_h0{
-      h0.selfenergy.to_device(),
-      h0.kcn.to_device(),
-      h0.kq1.to_device(),
-      h0.kq2.to_device(),
-      h0.hscale.to_device(),
-      h0.shpoly.to_device(),
-      h0.rad.to_device(),
-      h0.refocc.to_device()};
+  // const tb_hamiltonian d_h0{
+  //     h0.selfenergy.to_device(),
+  //     h0.kcn.to_device(),
+  //     h0.kq1.to_device(),
+  //     h0.kq2.to_device(),
+  //     h0.hscale.to_device(),
+  //     h0.shpoly.to_device(),
+  //     h0.rad.to_device(),
+  //     h0.refocc.to_device()};
 
-  const tensor1d_t<const double> d_selfenergy = tensor1d_t<const double>(selfenergy, nelem).to_device();
-  tensor2d_t<double> d_overlap = tensor2d_t<double>(overlap, nao, nao).to_device();
-  tensor3d_t<double> d_dpint = tensor3d_t<double>(dpint, nao, nao, 3).to_device();
-  tensor3d_t<double> d_qpint = tensor3d_t<double>(qpint, nao, nao, 6).to_device();
-  tensor2d_t<double> d_hamiltonian = tensor2d_t<double>(hamiltonian, nao, nao).to_device();
+  // const tensor1d_t<const double> d_selfenergy = tensor1d_t<const double>(selfenergy, nelem).to_device();
+  // tensor2d_t<double> d_overlap = tensor2d_t<double>(overlap, nao, nao).to_device();
+  // tensor3d_t<double> d_dpint = tensor3d_t<double>(dpint, nao, nao, 3).to_device();
+  // tensor3d_t<double> d_qpint = tensor3d_t<double>(qpint, nao, nao, 6).to_device();
+  // tensor2d_t<double> d_hamiltonian = tensor2d_t<double>(hamiltonian, nao, nao).to_device();
+  const tensor1d_t<const double> selfenergy_ten(selfenergy, nelem);
+  tensor2d_t<double> overlap_ten(overlap, nao, nao);
+  tensor3d_t<double> dpint_ten(dpint, nao, nao, 3);
+  tensor3d_t<double> qpint_ten(qpint, nao, nao, 6);
+  tensor2d_t<double> hamiltonian_ten(hamiltonian, nao, nao);
   
   /* Zero out the arrays before the kernel starts */
-  d_overlap.memset(static_cast<double>(0.0));
-  d_dpint.memset(static_cast<double>(0.0));
-  d_qpint.memset(static_cast<double>(0.0));
-  d_hamiltonian.memset(static_cast<double>(0.0));
+  // d_overlap.memset(static_cast<double>(0.0));
+  // d_dpint.memset(static_cast<double>(0.0));
+  // d_qpint.memset(static_cast<double>(0.0));
+  // d_hamiltonian.memset(static_cast<double>(0.0));
   
   ////////////////////////////////////////////
   // Launch kernel part I
@@ -1231,20 +1243,28 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   float milliseconds = 0;
 
   {
-    CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1024 * sizeof(double)));
+    /*
+    NOTE
+    cudaLimitMallocHeapSize controls the size in bytes of the heap used by 
+    the ::malloc() and ::free() device system calls. Setting ::cudaLimitMallocHeapSize 
+    must not be performed after launching any kernel that uses the ::malloc() or ::free() 
+    device system calls - in such case ::cudaErrorInvalidValue will be returned
+    */
+    // CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1024 * sizeof(double)));
+    setCudaMallocHeapSizeOnce(1024 * sizeof(double));
     cudaDeviceSynchronize();
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
     get_hamiltonian_inter_atomic<<<1, mol.nat>>>(
-      d_mol,
-      d_trans,
-      d_alist,
-      d_basis,
-      d_h0,
-      d_selfenergy,
-      d_overlap,
-      d_dpint,
-      d_qpint,
-      d_hamiltonian);
+      mol,
+      trans_ten,
+      alist,
+      bas,
+      h0,
+      selfenergy_ten,
+      overlap_ten,
+      dpint_ten,
+      qpint_ten,
+      hamiltonian_ten);
     CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaGetLastError());
 
@@ -1260,16 +1280,16 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   {
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
     get_hamiltonian_intra_atomic<<<1, mol.nat>>>(
-        d_mol,
-        d_trans,
-        d_alist,
-        d_basis,
-        d_h0,
-        d_selfenergy,
-        d_overlap,
-        d_dpint,
-        d_qpint,
-        d_hamiltonian);
+        mol,
+        trans_ten,
+        alist,
+        bas,
+        h0,
+        selfenergy_ten,
+        overlap_ten,
+        dpint_ten,
+        qpint_ten,
+        hamiltonian_ten);
     CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaGetLastError());
 
@@ -1288,11 +1308,52 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   // printf("d_hamiltonian = \n");
   // d_hamiltonian.print();
 
-  memcpy(overlap, d_overlap.data, d_overlap.size() * sizeof(double));
-  memcpy(dpint, d_dpint.data, d_dpint.size() * sizeof(double));
-  memcpy(qpint, d_qpint.data, d_qpint.size() * sizeof(double));
-  memcpy(hamiltonian, d_hamiltonian.data, d_hamiltonian.size() * sizeof(double));
+  ////////////////////////////
+  // copy data back to host
+  ////////////////////////////
+  memcpy(overlap, overlap_ten.data, overlap_ten.size() * sizeof(double));
+  memcpy(dpint, dpint_ten.data, dpint_ten.size() * sizeof(double));
+  memcpy(qpint, qpint_ten.data, qpint_ten.size() * sizeof(double));
+  memcpy(hamiltonian, hamiltonian_ten.data, hamiltonian_ten.size() * sizeof(double));
   
+  ///////////////////////////
+  // free cuda memory
+  //////////////////////////
+  cudaFree((void *)mol.num.data);
+  cudaFree((void *)mol.xyz.data);
+
+  cudaFree((void *)trans_ten.data);
+
+  cudaFree((void *)alist.inl.data);
+  cudaFree((void *)alist.nnl.data);
+  cudaFree((void *)alist.nlat.data);
+  cudaFree((void *)alist.nltr.data);
+
+  cudaFree((void *)bas.nsh_id.data);
+  cudaFree((void *)bas.nsh_at.data);
+  cudaFree((void *)bas.nao_sh.data);
+  cudaFree((void *)bas.iao_sh.data);
+  cudaFree((void *)bas.ish_at.data);
+  cudaFree((void *)bas.ao2at.data);
+  cudaFree((void *)bas.ao2sh.data);
+  cudaFree((void *)bas.sh2at.data);
+  cudaFree((void *)bas.cgto.data);
+
+  cudaFree((void *)h0.selfenergy.data);
+  cudaFree((void *)h0.kcn.data);
+  cudaFree((void *)h0.kq1.data);
+  cudaFree((void *)h0.kq2.data);
+  cudaFree((void *)h0.hscale.data);
+  cudaFree((void *)h0.shpoly.data);
+  cudaFree((void *)h0.rad.data);
+  cudaFree((void *)h0.refocc.data);
+
+  cudaFree((void *)selfenergy_ten.data);
+
+  cudaFree(overlap_ten.data);
+  cudaFree(dpint_ten.data);
+  cudaFree(qpint_ten.data);
+  cudaFree(hamiltonian_ten.data);
   // printf("Exiting prematurely. Remove this once the kernel is working.\n");
   // exit(EXIT_FAILURE);
 }

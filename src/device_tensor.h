@@ -25,36 +25,14 @@ public:
 
   __device__ device_tensor2d_t(const device_tensor2d_t &other)
   {
-    // Warn on use, we shouldn't need this!
     printf("Warning: device_tensor2d_t copy constructor called.\n");
     assert(false && "Copy constructor should not be used!");
-    // printf("Warning: tensor2d_t copy constructor called.\n");
-    // this->dim1 = other.dim1;
-    // this->dim2 = other.dim2;
-    // this->data = (T *)xmalloc(dim1 * dim2 * sizeof(T));
-    // for (int i = 0; i < dim1 * dim2; ++i)
-    // {
-    //     this->data[i] = other.data[i];
-    // }
   }
   __device__ device_tensor2d_t &operator=(const device_tensor2d_t &other)
   {
-    /* Warn on use, we shouldn't need this! */
     printf("Warning: device_tensor2d_t assignment operator called.\n");
     assert(false && "Assignment operator should not be used!");
     return *this;
-    // if (this != &other)
-    // {
-    //     free(this->data);
-    //     this->dim1 = other.dim1;
-    //     this->dim2 = other.dim2;
-    //     this->data = (T *)xmalloc(dim1 * dim2 * sizeof(T));
-    //     for (int i = 0; i < dim1 * dim2; ++i)
-    //     {
-    //         this->data[i] = other.data[i];
-    //     }
-    // }
-    // return *this;
   }
 
   __device__ inline T &operator()(int i, int j)

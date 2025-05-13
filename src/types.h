@@ -26,20 +26,11 @@ typedef struct {
     const int nat;
     const int nid;
     const int nbd;
-    // const int *id;  const int id_dim1;
     const tensor1d_t<const int> id; // 1D array of atom IDs
-    // const int *num; const int num_dim1;
     const tensor1d_t<const int> num; // 1D array of atom numbers
-    // const double *xyz; const int xyz_dim1; const int xyz_dim2;
     const tensor2d_t<const double> xyz; // 2D array of atom coordinates
     const int uhf;
     const double charge;
-    // const double *lattice; const int lattice_dim1; const int lattice_dim2;
-    const tensor2d_t<const double> lattice; // 2D array of lattice vectors
-    // const int *periodic; const int periodic_dim1;
-    const tensor1d_t<const int> periodic; // 1D array of periodicity flags
-    // const int *bond; const int bond_dim1; const int bond_dim2;
-    const tensor2d_t<const int> bond; // 2D array of bond information
 } structure_type;
 
 __host__ __device__
@@ -72,30 +63,7 @@ void printstruct(const structure_type &str)
   }
   printf("  uhf: %d\n", str.uhf);
   printf("  charge: %f\n", str.charge);
-  printf("  lattice: ");
-  for (int i = 0; i < str.lattice.dim1; ++i)
-  {
-    for (int j = 0; j < str.lattice.dim2; ++j)
-    {
-      printf("%f, ", str.lattice(i, j));
-    }
-    printf("\n");
-  }
-  printf("  periodic: ");
-  for (int i = 0; i < str.periodic.dim1; ++i)
-  {
-    printf("%d, ", str.periodic[i]);
-  }
   printf("\n");
-  printf("  bond: ");
-  for (int i = 0; i < str.bond.dim1; ++i)
-  {
-    for (int j = 0; j < str.bond.dim2; ++j)
-    {
-      printf("%d, ", str.bond(i, j));
-    }
-    printf("\n");
-  }
 }
 
 typedef struct {
@@ -161,34 +129,7 @@ void printstruct(const cgto_type &cgto)
   printf("\n");
 }
 
-
-
-// Equivalent C struct for basis_type
 typedef struct {
-  /*        !> basis_type
-        integer(c_int), value :: bas_maxl
-        integer(c_int), value :: bas_nsh
-        integer(c_int), value :: bas_nao
-        real(c_double), value :: bas_intcut
-        real(c_double), value :: bas_min_alpha
-        integer(c_int), intent(in) :: bas_nsh_id(*)
-        integer(c_int), value :: bas_nsh_id_dim1
-        integer(c_int), intent(in) :: bas_nsh_at(*)
-        integer(c_int), value :: bas_nsh_at_dim1
-        integer(c_int), intent(in) :: bas_nao_sh(*)
-        integer(c_int), value :: bas_nao_sh_dim1
-        integer(c_int), intent(in) :: bas_iao_sh(*)
-        integer(c_int), value :: bas_iao_sh_dim1
-        integer(c_int), intent(in) :: bas_ish_at(*)
-        integer(c_int), value :: bas_ish_at_dim1
-        integer(c_int), intent(in) :: bas_ao2at(*)
-        integer(c_int), value :: bas_ao2at_dim1
-        integer(c_int), intent(in) :: bas_ao2sh(*)
-        integer(c_int), value :: bas_ao2sh_dim1
-        integer(c_int), intent(in) :: bas_sh2at(*)
-        integer(c_int), value :: bas_sh2at_dim1
-        type(cgto_type), intent(in) :: cgto(*)
-        integer(c_int), value :: cgto_dim1, cgto_dim2*/
   const int maxl;
   const int nsh;
   const int nao;
@@ -277,31 +218,6 @@ void printstruct(const basis_type &bas)
 
 // Hamiltonian interaction data structure
 typedef struct {
-  /*        !> tb_hamiltonian
-        real(c_double), intent(in) :: h0_selfenergy(*)
-        integer(c_int), value :: h0_selfenergy_dim1, h0_selfenergy_dim2
-        real(c_double), intent(in) :: h0_kcn(*)
-        integer(c_int), value :: h0_kcn_dim1, h0_kcn_dim2
-        real(c_double), intent(in) :: h0_kq1(*)
-        integer(c_int), value :: h0_kq1_dim1, h0_kq1_dim2
-        real(c_double), intent(in) :: h0_kq2(*)
-        integer(c_int), value :: h0_kq2_dim1, h0_kq2_dim2
-        real(c_double), intent(in) :: h0_hscale(*)
-        integer(c_int), value :: h0_hscale_dim1, h0_hscale_dim2, h0_hscale_dim3, h0_hscale_dim4
-        real(c_double), intent(in) :: h0_shpoly(*)
-        integer(c_int), value :: h0_shpoly_dim1, h0_shpoly_dim2
-        real(c_double), intent(in) :: h0_rad(*)
-        integer(c_int), value :: h0_rad_dim1
-        real(c_double), intent(in) :: h0_refocc(*)
-        integer(c_int), value :: h0_refocc_dim1, h0_refocc_dim2*/
-  // const double *selfenergy; const int selfenergy_dim1; const int selfenergy_dim2;
-  // const double *kcn; const int kcn_dim1; const int kcn_dim2;
-  // const double *kq1; const int kq1_dim1; const int kq1_dim2;
-  // const double *kq2; const int kq2_dim1; const int kq2_dim2;
-  // const double *hscale; const int hscale_dim1; const int hscale_dim2; const int hscale_dim3; const int hscale_dim4;
-  // const double *shpoly; const int shpoly_dim1; const int shpoly_dim2;
-  // const double *rad; const int rad_dim1;
-  // const double *refocc; const int refocc_dim1; const int refocc_dim2;
   const tensor2d_t<const double> selfenergy; // 2D array of self-energy
   const tensor2d_t<const double> kcn; // 2D array of kcn
   const tensor2d_t<const double> kq1; // 2D array of kq1
@@ -354,21 +270,6 @@ void printstruct(const tb_hamiltonian &h0)
   }
   printf("  hscale: ");
   h0.hscale.print();
-  // for (int i = 0; i < h0.hscale.dim1; ++i)
-  // {
-  //   for (int j = 0; j < h0.hscale.dim2; ++j)
-  //   {
-  //     for (int k = 0; k < h0.hscale.dim3; ++k)
-  //     {
-  //       for (int l = 0; l < h0.hscale.dim4; ++l)
-  //       {
-  //         printf("%f, ", h0.hscale(i, j, k, l));
-  //       }
-  //     }
-  //     printf("\n");
-  //   }
-  //   printf("\n");
-  // }
   printf("  shpoly: ");
   for (int i = 0; i < h0.shpoly.dim1; ++i)
   {
