@@ -18,7 +18,7 @@ public:
   bool is_device; // Flag to indicate if the data is on the device
   tensor1d_t() : dim1(0), data(nullptr), is_device(false) {}
   tensor1d_t(T *data, int dim1) : data(data), dim1(dim1), is_device(false) {}
-  __device__ __host__ inline const int size() const
+  __device__ __host__ inline int size() const
   {
     return dim1;
   }
@@ -78,21 +78,15 @@ template <typename T>
 class tensor2d_t
 {
 public:
-  int dim1, dim2;
+  const int dim1, dim2;
   T *data;
   bool is_device; // Flag to indicate if the data is on the device
 
   tensor2d_t() : dim1(0), dim2(0), data(nullptr), is_device(false) {}
 
-  tensor2d_t(T *data, int dim1, int dim2)
-  {
-    this->dim1 = dim1;
-    this->dim2 = dim2;
-    this->is_device = false;
-    this->data = data;
-  }
+  tensor2d_t(T *data, int dim1, int dim2) : dim1(dim1), dim2(dim2), is_device(false), data(data) {}
 
-  __device__ __host__ inline const int size() const
+  __device__ __host__ inline int size() const
   {
     return dim1 * dim2;
   }
@@ -160,22 +154,15 @@ template <typename T>
 class tensor3d_t
 {
 public:
-  int dim1, dim2, dim3;
+  const int dim1, dim2, dim3;
   T *data;
   bool is_device; // Flag to indicate if the data is on the device
 
   tensor3d_t() : dim1(0), dim2(0), dim3(0), data(nullptr), is_device(false) {}
 
-  tensor3d_t(T *data, int dim1, int dim2, int dim3)
-  {
-    this->dim1 = dim1;
-    this->dim2 = dim2;
-    this->dim3 = dim3;
-    this->is_device = false;
-    this->data = data;
-  }
+  tensor3d_t(T *data, int dim1, int dim2, int dim3) : dim1(dim1), dim2(dim2), dim3(dim3), is_device(false), data(data) {}
 
-  __device__ __host__ inline const int size() const
+  __device__ __host__ inline int size() const
   {
     return dim1 * dim2 * dim3;
   }
@@ -248,23 +235,15 @@ template <typename T>
 class tensor4d_t
 {
 public:
-  int dim1, dim2, dim3, dim4;
+  const int dim1, dim2, dim3, dim4;
   T *data;
   bool is_device; // Flag to indicate if the data is on the device
 
   tensor4d_t() : dim1(0), dim2(0), dim3(0), dim4(0), data(nullptr), is_device(false) {}
 
-  tensor4d_t(T *data, int dim1, int dim2, int dim3, int dim4)
-  {
-    this->dim1 = dim1;
-    this->dim2 = dim2;
-    this->dim3 = dim3;
-    this->dim4 = dim4;
-    this->is_device = false;
-    this->data = data;
-  }
+  tensor4d_t(T *data, int dim1, int dim2, int dim3, int dim4) : dim1(dim1), dim2(dim2), dim3(dim3), dim4(dim4), is_device(false), data(data) {}
   
-  __device__ __host__ inline const int size() const
+  __device__ __host__ inline int size() const
   {
     return dim1 * dim2 * dim3 * dim4;
   }
