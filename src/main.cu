@@ -32,6 +32,7 @@ __device__ inline void transform0(const int lj, const int li, const device_tenso
       break;
     case 2:
       // sphr = matmul(dtrafo, cart)
+      assert(sphr.dim1 == cart.dim1);
       for(int i = 0; i < cart.dim1; ++i)
       {
         sphr(i, 0) = cart(i, 2) - 0.5 * (cart(i, 0) + cart(i, 1));
@@ -80,13 +81,14 @@ __device__ inline void transform0(int lj, int li, int k, const device_tensor3d_t
       break;
     case 2:
       // sphr = matmul(dtrafo, cart)
-      for(int i = 0; i < cart.dim2; ++i)
+      assert(sphr.dim1 == cart.dim1);
+      for(int i = 0; i < cart.dim1; ++i)
       {
-        sphr(k, i, 0) = cart(k, i, 2) - 0.5 * (cart(k, i, 0) + cart(k, i, 1));
-        sphr(k, i, 1) = s3 * cart(k, i, 4);
-        sphr(k, i, 2) = s3 * cart(k, i, 5);
-        sphr(k, i, 3) = s3_4 * (cart(k, i, 0) - cart(k, i, 1));
-        sphr(k, i, 4) = s3 * cart(k, i, 3);
+        sphr(i, 0, k) = cart(i, 2, k) - 0.5 * (cart(i, 0, k) + cart(i, 1, k));
+        sphr(i, 1, k) = s3 * cart(i, 4, k);
+        sphr(i, 2, k) = s3 * cart(i, 5, k);
+        sphr(i, 3, k) = s3_4 * (cart(i, 0, k) - cart(i, 1, k));
+        sphr(i, 4, k) = s3 * cart(i, 3, k);
       }
       break;
     
@@ -399,12 +401,10 @@ __device__ inline void multipole_3d(
    end do*/
   for(int k = 0; k < 3; ++k)
   {
-    for (int l = 0; l < MAXL2; ++l)
-    {
-      vv[l] = 0.0;
-      vi[l] = 0.0;
-      vj[l] = 0.0;
-    }
+    double vv[MAXL2] = {0.0};
+    double vi[MAXL] = {0.0};
+    double vj[MAXL] = {0.0};
+    
     vi[li[k]] = 1.0;
     vj[lj[k]] = 1.0;
     horizontal_shift(rpi[k], li[k], vi);
@@ -526,7 +526,7 @@ __device__ void multipole_cgto(
     {0, 0, 4}, {0, 1, 3}, {0, 2, 2}, {0, 3, 1}, {0, 4, 0}, {1, 0, 3}, {1, 1, 2}, {1, 2, 1}, {1, 3, 0}, {2, 0, 2}, {2, 1, 1}, {2, 2, 0}
   };
 
-  int ip = 0, jp = 0, mli = 0, mlj = 0, l = 0;
+  int ip = 0, jp = 0, mli = 0, mlj = 0;
   double eab = 0.0, oab = 0.0, est = 0.0, s1d[MAXL2] = {0.0}, rpi[3] = {0.0}, 
     rpj[3] = {0.0}, cc = 0.0, val = 0.0, dip[3] = {0.0}, quad[6] = {0.0}, pre = 0.0, tr = 0.0;
   constexpr double sqrtpi3 = 5.56832799683; // sqrt(pi)**3
@@ -577,7 +577,7 @@ __device__ void multipole_cgto(
         rpi[k] = -vec[k] * cgtoj.alpha[jp] * oab;
         rpj[k] = +vec[k] * cgtoi.alpha[ip] * oab;
       }
-      for (l = 0; l <= cgtoi.ang + cgtoj.ang + 2; ++l)
+      for (int l = 0; l <= cgtoi.ang + cgtoj.ang + 2; ++l)
         s1d[l] = overlap_1d(l, eab);
       double cc = cgtoi.coeff[ip] * cgtoj.coeff[jp] * pre;
       for (mli = 0; mli < mlao[cgtoi.ang]; ++mli)
