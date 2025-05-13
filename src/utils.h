@@ -137,4 +137,11 @@ __host__ __device__ inline void * xmalloc(size_t size)
   return ptr;
 }
 
+__host__ __device__ inline void * xcalloc(size_t size)
+{
+  void *ptr = calloc(1, size);
+  assert(ptr != nullptr && "Memory allocation failed");
+  return ptr;
+}
+
 #endif

@@ -64,7 +64,7 @@ public:
       {
         printf("%f, ", static_cast<double>(data[i * dim2 + j]));
       }
-      printf("], ");
+      printf(i < dim1 - 1 ? "], \n " : "]");
     }
     printf("]\n");
   }

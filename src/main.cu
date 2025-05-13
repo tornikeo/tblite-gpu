@@ -383,7 +383,8 @@ __device__ inline void multipole_3d(
 
    v1d(:, :) = 0.0_wp
 */
-  double vi[MAXL] = {0.0}, vj[MAXL] = {0.0}, vv[MAXL2] = {0.0}, v1d[3][3] = {0.0};
+  // double vi[MAXL] = {0.0}, vj[MAXL] = {0.0}, vv[MAXL2] = {0.0}, 
+  double v1d[3][3] = {0.0};
   /*do k = 1, 3
       vv(:) = 0.0_wp
       vi(:) = 0.0_wp
@@ -515,7 +516,10 @@ __device__ void multipole_cgto(
   /*integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
    integer, parameter :: mlao(0:maxl) = [1, 3, 6, 10, 15, 21, 28]
    integer, parameter :: lmap(0:maxl) = [0, 1, 4, 10, 20, 35, 56]*/
-  constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13};
+  constexpr int msao[] = {0, 1, 3, 5, 7, 9, 11, 13}; /* TODO: continue from here
+  last night we saw that bas.maxl was used as an index to msao
+  msao, being a 0:maxl array, was indexed by bas.maxl. This led to some errors.
+  */
   constexpr int mlao[] = {1, 3, 6, 10, 15, 21, 28};
   constexpr int lmap[] = {0, 1, 4, 10, 20, 35, 56};
   constexpr int lx[32][3] = {
@@ -526,7 +530,6 @@ __device__ void multipole_cgto(
     {0, 0, 4}, {0, 1, 3}, {0, 2, 2}, {0, 3, 1}, {0, 4, 0}, {1, 0, 3}, {1, 1, 2}, {1, 2, 1}, {1, 3, 0}, {2, 0, 2}, {2, 1, 1}, {2, 2, 0}
   };
 
-  int ip = 0, jp = 0, mli = 0, mlj = 0;
   double eab = 0.0, oab = 0.0, est = 0.0, s1d[MAXL2] = {0.0}, rpi[3] = {0.0}, 
     rpj[3] = {0.0}, cc = 0.0, val = 0.0, dip[3] = {0.0}, quad[6] = {0.0}, pre = 0.0, tr = 0.0;
   constexpr double sqrtpi3 = 5.56832799683; // sqrt(pi)**3
@@ -561,9 +564,9 @@ __device__ void multipole_cgto(
          end do
       end do
    end do*/
-  for (ip = 0; ip < cgtoi.nprim; ++ip)
+  for (int ip = 0; ip < cgtoi.nprim; ++ip)
   {
-    for (jp = 0; jp < cgtoj.nprim; ++jp)
+    for (int jp = 0; jp < cgtoj.nprim; ++jp)
     {
       eab = cgtoi.alpha[ip] + cgtoj.alpha[jp];
       oab = 1.0 / eab;
@@ -580,9 +583,9 @@ __device__ void multipole_cgto(
       for (int l = 0; l <= cgtoi.ang + cgtoj.ang + 2; ++l)
         s1d[l] = overlap_1d(l, eab);
       double cc = cgtoi.coeff[ip] * cgtoj.coeff[jp] * pre;
-      for (mli = 0; mli < mlao[cgtoi.ang]; ++mli)
+      for (int mli = 0; mli < mlao[cgtoi.ang]; ++mli)
       {
-        for (mlj = 0; mlj < mlao[cgtoj.ang]; ++mlj)
+        for (int mlj = 0; mlj < mlao[cgtoj.ang]; ++mlj)
         {
           // {
           //   printf("================== MULTIPOLE_CGTO INNER LOOP =================\n");
@@ -600,7 +603,9 @@ __device__ void multipole_cgto(
             cgtoj.alpha[jp], cgtoi.alpha[ip], 
             lx[mlj + lmap[cgtoj.ang]], lx[mli + lmap[cgtoi.ang]], 
             s1d, val, dip, quad);
+          
           s3d(mli, mlj) += cc * val;
+          
           for (size_t k = 0; k < 3; ++k)
             d3d(mli,mlj,k) += cc * dip[k];
           for (size_t k = 0; k < 6; ++k)
@@ -616,6 +621,7 @@ __device__ void multipole_cgto(
    call transform1(cgtoj%ang, cgtoi%ang, q3d, qpint)
   */
   transform0(cgtoj.ang, cgtoi.ang, s3d, overlap);
+  printf("overlap=\n"); overlap.print();
   transform1(cgtoj.ang, cgtoi.ang, d3d, dpint);
   transform1(cgtoj.ang, cgtoi.ang, q3d, qpint);
 
@@ -632,9 +638,9 @@ __device__ void multipole_cgto(
       end do
    end do*/
 
-  for (mli = 0; mli < msao[cgtoi.ang]; ++mli)
+  for (int mli = 0; mli < msao[cgtoi.ang]; ++mli)
   {
-    for (mlj = 0; mlj < msao[cgtoj.ang]; ++mlj)
+    for (int mlj = 0; mlj < msao[cgtoj.ang]; ++mlj)
     {
       tr = 0.5 * (qpint(mli, mlj, 0) + qpint(mli, mlj, 2) + qpint(mli, mlj, 5));
       qpint(mli, mlj, 0) = 1.5 * qpint(mli, mlj, 0) - tr;
@@ -802,16 +808,14 @@ __global__ void get_hamiltonian_inter_atomic(
     // integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
   }
   const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
-  constexpr int msao[7] = {1, 3, 5, 7, 9, 11, 13};
+  constexpr int msao[] = {0, 1, 3, 5, 7, 9, 11, 13};
   double rr = 0.0, r2 = 0.0, vec[3] = {0.0}, cutoff2 = 0.0, hij = 0.0, shpoly = 0.0, dtmpj[3] = {0.0}, qtmpj[6] = {0.0};
 
   // allocate stmp, dtmpi, qtmpi
-  device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]);
-  stmp.fill(0.0);
-  device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3);
-  dtmpi.fill(0.0);
-  device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6);
-  qtmpi.fill(0.0);
+  // printf("bas.maxl = %d\n", bas.maxl);
+  device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]); stmp.fill(0.0);
+  device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3); dtmpi.fill(0.0);
+  device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6); qtmpi.fill(0.0);
 
   {
     // stmp.fill(1.0);
@@ -996,7 +1000,7 @@ __global__ void get_hamiltonian_intra_atomic(
   tensor2d_t<double> hamiltonian)
 {
   const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
-  constexpr int msao[7] = {1, 3, 5, 7, 9, 11, 13};
+  constexpr int msao[] = {0, 1, 3, 5, 7, 9, 11, 13};
 
   device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]); stmp.fill(0.0);
   device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3); dtmpi.fill(0.0);
@@ -1028,9 +1032,9 @@ __global__ void get_hamiltonian_intra_atomic(
         {
           overlap(ii + iao, jj + jao) += stmp(iao, jao);
           for(int k = 0; k < 3; ++k)
-          dpint(ii + iao, jj + jao, k) += dtmpi(iao, jao, k);
+            dpint(ii + iao, jj + jao, k) += dtmpi(iao, jao, k);
           for(int k = 0; k < 6; ++k)
-          qpint(ii + iao, jj + jao, k) += qtmpi(iao, jao, k);
+            qpint(ii + iao, jj + jao, k) += qtmpi(iao, jao, k);
           hamiltonian(ii + iao, jj + jao) += stmp(iao, jao) * hij;
         }
       }
@@ -1273,7 +1277,8 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     printf("Kernel part I execution time: %f ms\n", milliseconds);
     cudaEventDestroy(start); cudaEventDestroy(stop);
   }
-  
+  printf("hamiltonian_ten(pre) = \n");
+  hamiltonian_ten.print();
   ////////////////////////////////////////////
   // Launch kernel part II
   ////////////////////////////////////////////
@@ -1299,14 +1304,6 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     printf("Kernel part II execution time: %f ms\n", milliseconds);
     cudaEventDestroy(start); cudaEventDestroy(stop);
   }
-  // printf("d_overlap = \n");
-  // d_overlap.print();
-  // printf("d_dpint = \n");
-  // d_dpint.print();
-  // printf("d_qpint = \n");
-  // d_qpint.print();
-  // printf("d_hamiltonian = \n");
-  // d_hamiltonian.print();
 
   ////////////////////////////
   // copy data back to host
@@ -1316,6 +1313,15 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   memcpy(qpint, qpint_ten.data, qpint_ten.size() * sizeof(double));
   memcpy(hamiltonian, hamiltonian_ten.data, hamiltonian_ten.size() * sizeof(double));
   
+  // printf("overlap_ten = \n");
+  // overlap_ten.print();
+  // printf("dpint_ten = \n");
+  // dpint_ten.print();
+  // printf("qpint_ten = \n");
+  // qpint_ten.print();
+  // printf("hamiltonian_ten = \n");
+  // hamiltonian_ten.print();
+
   ///////////////////////////
   // free cuda memory
   //////////////////////////
@@ -1356,4 +1362,6 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   cudaFree(hamiltonian_ten.data);
   // printf("Exiting prematurely. Remove this once the kernel is working.\n");
   // exit(EXIT_FAILURE);
+
+  
 }
