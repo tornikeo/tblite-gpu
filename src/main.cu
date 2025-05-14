@@ -16,7 +16,6 @@ __device__ inline void transform0(
 {
   constexpr T s3 = 1.7320508075688772; // sqrt(3)
   constexpr T s3_4 = 0.6123724356957945; // sqrt(3)/2
-  printf("cart(%d, %d) sphr(%d, %d) %s %s:%d\n", cart.dim1, cart.dim2, sphr.dim1, sphr.dim2, __func__, __FILE__, __LINE__);
   /* sphr is a larger array. It contains the max size that an integral might need
   so iterate over smaller cart dims instead*/
   assert(sphr.dim1 >= cart.dim1); 
@@ -36,15 +35,6 @@ __device__ inline void transform0(
         {
           sphr(i, j) = cart(i, j);
         }
-      }
-      printf("sphr = \n");
-      for (int i = 0; i < cart.dim1; ++i)
-      {
-        for (int j = 0; j < cart.dim2; ++j)
-        {
-          printf("%f, ", sphr(i, j));
-        }
-        printf("\n");
       }
       break;
     case 2:
@@ -275,9 +265,9 @@ __device__ inline void multipole_3d(
 
   for(int k = 0; k < 3; ++k)
   {
-    double vv[MAXL2] = {0.0};
     double vi[MAXL] = {0.0};
     double vj[MAXL] = {0.0};
+    double vv[MAXL2] = {0.0};
     
     vi[li[k]] = 1.0;
     vj[lj[k]] = 1.0;
@@ -286,13 +276,14 @@ __device__ inline void multipole_3d(
     form_product(vi, vj, li[k], lj[k], vv);
     for (int l = 0; l <= li[k] + lj[k]; ++l)
     {
+      assert(l < MAXL2 - 1);
       v1d[k][0] += s1d[l] * vv[l];
       v1d[k][1] += (s1d[l + 1] + rpi[k] * s1d[l]) * vv[l];
       v1d[k][2] += (s1d[l + 2] + 2 * rpi[k] * s1d[l + 1] + rpi[k] * rpi[k] * s1d[l]) * vv[l];
     }
   }
   s3d = v1d[0][0] * v1d[1][0] * v1d[2][0];
-
+  
   d3d[0] = v1d[0][1] * v1d[1][0] * v1d[2][0];
   d3d[1] = v1d[0][0] * v1d[1][1] * v1d[2][0];
   d3d[2] = v1d[0][0] * v1d[1][0] * v1d[2][1];
@@ -328,23 +319,100 @@ __device__ void multipole_cgto(
   constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13}; 
   constexpr int mlao[] = {1, 3, 6, 10, 15, 21, 28};
   constexpr int lmap[] = {0, 1, 4, 10, 20, 35, 56};
-  constexpr int lx[32][3] = {
-    {0, 0, 0}, 
-    {0, 0, 1}, {0, 1, 0}, {1, 0, 0}, 
-    {0, 0, 2}, {0, 1, 1}, {0, 2, 0}, {1, 0, 1}, {1, 1, 0}, {2, 0, 0}, 
-    {0, 0, 3}, {0, 1, 2}, {0, 2, 1}, {0, 3, 0}, {1, 0, 2}, {1, 1, 1}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}, {3, 0, 0}, 
-    {0, 0, 4}, {0, 1, 3}, {0, 2, 2}, {0, 3, 1}, {0, 4, 0}, {1, 0, 3}, {1, 1, 2}, {1, 2, 1}, {1, 3, 0}, {2, 0, 2}, {2, 1, 1}, {2, 2, 0}
+  constexpr int lx[84][3] = {
+    {0,0,0,},
+    {0,1,0,},
+    {0,0,1,},
+    {1,0,0,},
+    {2,0,0,},
+    {0,2,0,},
+    {0,0,2,},
+    {1,1,0,},
+    {1,0,1,},
+    {0,1,1,},
+    {3,0,0,},
+    {0,3,0,},
+    {0,0,3,},
+    {2,1,0,},
+    {2,0,1,},
+    {1,2,0,},
+    {0,2,1,},
+    {1,0,2,},
+    {0,1,2,},
+    {1,1,1,},
+    {4,0,0,},
+    {0,4,0,},
+    {0,0,4,},
+    {3,1,0,},
+    {3,0,1,},
+    {1,3,0,},
+    {0,3,1,},
+    {1,0,3,},
+    {0,1,3,},
+    {2,2,0,},
+    {2,0,2,},
+    {0,2,2,},
+    {2,1,1,},
+    {1,2,1,},
+    {1,1,2,},
+    {5,0,0,},
+    {0,5,0,},
+    {0,0,5,},
+    {3,2,0,},
+    {3,0,2,},
+    {2,3,0,},
+    {2,0,3,},
+    {0,3,2,},
+    {0,2,3,},
+    {4,1,0,},
+    {4,0,1,},
+    {1,4,0,},
+    {0,4,1,},
+    {0,1,4,},
+    {1,0,4,},
+    {1,1,3,},
+    {3,1,1,},
+    {1,3,1,},
+    {2,2,1,},
+    {2,1,2,},
+    {1,2,2,},
+    {6,0,0,},
+    {0,6,0,},
+    {0,0,6,},
+    {3,3,0,},
+    {3,0,3,},
+    {0,3,3,},
+    {5,1,0,},
+    {5,0,1,},
+    {1,0,5,},
+    {0,1,5,},
+    {0,5,1,},
+    {1,5,0,},
+    {4,2,0,},
+    {4,0,2,},
+    {2,0,4,},
+    {0,2,4,},
+    {2,4,0,},
+    {0,4,2,},
+    {3,2,1,},
+    {3,1,2,},
+    {1,3,2,},
+    {2,1,3,},
+    {2,3,1,},
+    {1,2,3,},
+    {4,1,1,},
+    {1,4,1,},
+    {1,1,4,},
+    {2,2,2,},
   };
 
   double eab = 0.0, oab = 0.0, est = 0.0, s1d[MAXL2] = {0.0}, rpi[3] = {0.0}, 
     rpj[3] = {0.0}, cc = 0.0, val = 0.0, dip[3] = {0.0}, quad[6] = {0.0}, pre = 0.0, tr = 0.0;
   constexpr double sqrtpi3 = 5.56832799683; // sqrt(pi)**3
 
-  device_tensor2d_t<double> s3d(mlao[cgtoj.ang], mlao[cgtoi.ang]); s3d.fill(0.0);
-  device_tensor3d_t<double> d3d(mlao[cgtoj.ang], mlao[cgtoi.ang], 3); d3d.fill(0.0);
-  device_tensor3d_t<double> q3d(mlao[cgtoj.ang], mlao[cgtoi.ang], 6); q3d.fill(0.0);
-  printf("cgtoj.ang=%d, mlao[cgtoj.ang]=%d\n", cgtoj.ang, mlao[cgtoj.ang]);
-  printf("cgtoi.ang=%d, mlao[cgtoi.ang]=%d\n", cgtoi.ang, mlao[cgtoi.ang]);
+  device_tensor2d_t<double> s3d(mlao[cgtoi.ang], mlao[cgtoj.ang]); s3d.fill(0.0);
+  device_tensor3d_t<double> d3d(mlao[cgtoi.ang], mlao[cgtoj.ang], 3); d3d.fill(0.0);
+  device_tensor3d_t<double> q3d(mlao[cgtoi.ang], mlao[cgtoj.ang], 6); q3d.fill(0.0);
 
   for (int ip = 0; ip < cgtoi.nprim; ++ip)
   {
@@ -365,31 +433,30 @@ __device__ void multipole_cgto(
       for (int l = 0; l <= cgtoi.ang + cgtoj.ang + 2; ++l)
         s1d[l] = overlap_1d(l, eab);
       double cc = cgtoi.coeff[ip] * cgtoj.coeff[jp] * pre;
+      
       for (int mli = 0; mli < mlao[cgtoi.ang]; ++mli)
       {
         for (int mlj = 0; mlj < mlao[cgtoj.ang]; ++mlj)
         {
           multipole_3d(
-            rpj, rpi, 
-            cgtoj.alpha[jp], cgtoi.alpha[ip], 
-            lx[mlj + lmap[cgtoj.ang]], lx[mli + lmap[cgtoi.ang]], 
+            rpi, rpj,
+            cgtoi.alpha[ip], cgtoj.alpha[jp], 
+            lx[mli + lmap[cgtoi.ang]], lx[mlj + lmap[cgtoj.ang]],
             s1d, val, dip, quad);
-          
-          s3d(mlj, mli) += cc * val;
+          s3d(mli, mlj) += cc * val;
           
           for (size_t k = 0; k < 3; ++k)
-            d3d(mlj,mli,k) += cc * dip[k];
+            d3d(mli,mlj,k) += cc * dip[k];
           for (size_t k = 0; k < 6; ++k)
-            q3d(mlj, mli, k) += cc * quad[k];
+            q3d(mli,mlj,k) += cc * quad[k];
         }
       }
     }
   }
-
+  
   transform0(cgtoj.ang, cgtoi.ang, /*cart=*/s3d, /*sphr=*/overlap);
   transform1(cgtoj.ang, cgtoi.ang, d3d, dpint);
   transform1(cgtoj.ang, cgtoi.ang, q3d, qpint);
-
 
 
   for (int mli = 0; mli < msao[cgtoi.ang]; ++mli)
@@ -490,30 +557,6 @@ __global__ void get_hamiltonian_inter_atomic(
     tensor3d_t<double> qpint,
     tensor2d_t<double> hamiltonian)
 {
-  {
-    // printf("mol = \n");
-    // printstruct(mol);
-    // printf("trans = \n");
-    // trans.print();
-    // printf("alist = \n");
-    // printstruct(alist);
-    // printf("bas = \n");
-    // printstruct(bas);
-    // printf("h0 = \n");
-    // printstruct(h0);
-    // printf("selfenergy = \n");
-    // selfenergy.print();
-    // printf("overlap = \n");
-    // overlap.print();
-    // printf("dpint = \n");
-    // dpint.print();
-    // printf("qpint = \n");
-    // qpint.print();
-    // printf("hamiltonian = \n");
-    // hamiltonian.print();
-    // constants
-    // integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
-  }
   const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
   constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13};
   double rr = 0.0, r2 = 0.0, vec[3] = {0.0}, cutoff2 = 0.0, hij = 0.0, shpoly = 0.0, dtmpj[3] = {0.0}, qtmpj[6] = {0.0};
@@ -535,9 +578,7 @@ __global__ void get_hamiltonian_inter_atomic(
     int jzp = mol.id[jat];
     int js = bas.ish_at[jat];
     for (int k = 0; k < 3; ++k)
-    {
       vec[k] = mol.xyz(iat, k) - mol.xyz(jat, k) - trans(itr, k);
-    }
 
     r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
     rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
