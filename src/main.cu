@@ -7,37 +7,48 @@
 #include "device_tensor.h"
 #include "types.h"
 
+/* 
+@brief performs C = A @ B**T
+*/
+template <size_t N, size_t M>
+__device__ inline void matmul(
+  const device_tensor2d_t<double> &A,
+  const double (&B)[N][M],
+  device_tensor2d_t<double> &C
+)
+{
+  for (int i = 0; i < A.dim1; ++i)
+  {
+    for (int j = 0; j < A.dim2; ++j)
+    {
+      double sum = 0.0;
+      for (int k = 0; k < N; ++k)
+      {
+        sum += A(i, k) * B[j][k]; // second is transposed
+      }
+      C(i, j) = sum;
+    }
+  }
+}
 
+// sphr(5, :) = dtrafo(5,6) @ cart(6, :) fort
+// sphr(:, 5) = dtrafo(6,5) @ cart( :) C
 template <typename T>
-__device__ inline void transform0(
-  const int lj, const int li, 
-  const device_tensor2d_t<T> &cart, 
-  device_tensor2d_t<T> &sphr)
+__device__ inline void transform0(const int li, const int lj, const device_tensor2d_t<T> &cart,  device_tensor2d_t<T> &sphr)
 {
   constexpr T s3 = 1.7320508075688772; // sqrt(3)
   constexpr T s3_4 = 0.6123724356957945; // sqrt(3)/2
   /* sphr is a larger array. It contains the max size that an integral might need
   so iterate over smaller cart dims instead*/
-  assert(sphr.dim1 >= cart.dim1); 
-  assert(sphr.dim2 >= cart.dim2);
-  switch (li)
+  if(li <= 1 && lj <= 1)
   {
-  case 0:
-  case 1:
-    switch (lj)
-    {
-    case 0:
-    case 1:
-      // Copy cart to sphr
-      for (int i = 0; i < cart.dim1; ++i)
-      {
-        for (int j = 0; j < cart.dim2; ++j)
-        {
-          sphr(i, j) = cart(i, j);
-        }
-      }
-      break;
-    case 2:
+    for(int i = 0; i < cart.dim1; i++)
+      for(int j = 0; j < cart.dim2; ++j)
+        sphr(i,j) = cart(i,j);
+    return;
+  } 
+  else if (li <= 1 && lj == 2)
+  {
       // sphr = matmul(dtrafo, cart)
       for(int i = 0; i < cart.dim1; ++i)
       {
@@ -45,50 +56,70 @@ __device__ inline void transform0(
         sphr(i, 1) = s3 * cart(i, 4);
         sphr(i, 2) = s3 * cart(i, 5);
         sphr(i, 3) = s3_4 * (cart(i, 0) - cart(i, 1));
-        sphr(i, 4) = s3 * cart(i, 3);
+        sphr(i, 4) = s3 * cart(i, 4);
       }
-      break;
-    
-    default:
-      printf("[Fatal] moment li=%i lj=%i not supported\n", li, lj);
-      assert(false);
       return;
+  } else if(li == 2 && lj <= 1) {
+    for(int i = 0; i < cart.dim2; ++i)
+    {
+      sphr(0, i) = cart(2, i) - 0.5 * (cart(0, i) + cart(1, i));
+      sphr(1, i) = s3 * cart(4, i);
+      sphr(2, i) = s3 * cart(5, i);
+      sphr(3, i) = s3_4 * (cart(0, i) - cart(1, i));
+      sphr(4, i) = s3 * cart(3, i);
     }
-    break;
-  default:
+  } else if (li == 2 && lj == 2) {
+    printf("⚠️ transforms at li=2 lj=2 are not yet implemented\n");
+    // sphr(1, 1) = cart(3, 3) &
+    //   & - 0.5_wp * (cart(3, 1) + cart(3, 2) + cart(1, 3) + cart(2, 3)) &
+    //   & + 0.25_wp * (cart(1, 1) + cart(1, 2) + cart(2, 1) + cart(2, 2))
+    // sphr([2, 3, 5], 1) = s3 * cart([5, 6, 4], 3) &
+    //   & - s3_4 * (cart([5, 6, 4], 1) + cart([5, 6, 4], 2))
+    // sphr(4, 1) = s3_4 * (cart(1, 3) - cart(2, 3)) &
+    //   & - s3 * 0.25_wp * (cart(1, 1) - cart(2, 1) + cart(1, 2) - cart(2, 2))
+    // sphr(1, 2) = s3 * cart(3, 5) - s3_4 * (cart(1, 5) + cart(2, 5))
+    // sphr([2, 3, 5], 2) = 3 * cart([5, 6, 4], 5)
+    // sphr(4, 2) = 1.5_wp * (cart(1, 5) - cart(2, 5))
+    // sphr(1, 3) = s3 * cart(3, 6) - s3_4 * (cart(1, 6) + cart(2, 6))
+    // sphr([2, 3, 5], 3) = 3 * cart([5, 6, 4], 6)
+    // sphr(4, 3) = 1.5_wp * (cart(1, 6) - cart(2, 6))
+    // sphr(1, 4) = s3_4 * (cart(3, 1) - cart(3, 2)) &
+    //   & - s3 * 0.25_wp * (cart(1, 1) - cart(1, 2) + cart(2, 1) - cart(2, 2))
+    // sphr([2, 3, 5], 4) = 1.5_wp * (cart([5, 6, 4], 1) - cart([5, 6, 4], 2))
+    // sphr(4, 4) = 0.75_wp * (cart(1, 1) - cart(2, 1) - cart(1, 2) + cart(2, 2))
+    // sphr(1, 5) = s3 * cart(3, 4) - s3_4 * (cart(1, 4) + cart(2, 4))
+    // sphr([2, 3, 5], 5) = 3 * cart([5, 6, 4], 4)
+    // sphr(4, 5) = 1.5_wp * (cart(1, 4) - cart(2, 4))
+  } 
+  else {
     printf("[Fatal] transform0 not supported for li=%d lj=%d\n", li, lj);
     assert(false);
     return;
   }
-  /* TODO: Support the rest of the transform cases*/
 }
 
 template <typename T>
-__device__ inline void transform0(int lj, int li, int k, const device_tensor3d_t<T> &cart, device_tensor3d_t<T> &sphr)
+__device__ inline void transform1(const int li, const int lj, const device_tensor3d_t<T> &cart, device_tensor3d_t<T> &sphr)
 {
   constexpr T s3 = 1.7320508075688772; // sqrt(3)
   constexpr T s3_4 = 0.6123724356957945; // sqrt(3)/2
-  switch (li)
+  if(li <= 1 && lj <= 1){
+    for(int i = 0; i < cart.dim1; ++i)
+      for(int j = 0; j < cart.dim2; ++j)
+        for(int k = 0; k < cart.dim3; ++k)
+          sphr(i,j,k) = cart(i,j,k);
+    return;
+  }
+  if (li <= 1 && lj == 2)
   {
-  case 0:
-  case 1:
-    switch (lj)
+    /*         sphr(1, :) = cart(3, :) - 0.5_wp * (cart(1, :) + cart(2, :))
+         sphr(2, :) = s3 * cart(5, :)
+         sphr(3, :) = s3 * cart(6, :)
+         sphr(4, :) = s3_4 * (cart(1, :) - cart(2, :))
+         sphr(5, :) = s3 * cart(4, :)*/
+    for(int i = 0; i < cart.dim1; ++i)
     {
-    case 0:
-    case 1:
-      // Copy cart to sphr
-      for (int i = 0; i < cart.dim2; ++i)
-      {
-        for (int j = 0; j < cart.dim3; ++j)
-        {
-          sphr(k, i, j) = cart(k, i, j);
-        }
-      }
-      break;
-    case 2:
-      // sphr = matmul(dtrafo, cart)
-      assert(sphr.dim1 == cart.dim1);
-      for(int i = 0; i < cart.dim1; ++i)
+      for (int k = 0; k < cart.dim3; ++k)
       {
         sphr(i, 0, k) = cart(i, 2, k) - 0.5 * (cart(i, 0, k) + cart(i, 1, k));
         sphr(i, 1, k) = s3 * cart(i, 4, k);
@@ -96,20 +127,46 @@ __device__ inline void transform0(int lj, int li, int k, const device_tensor3d_t
         sphr(i, 3, k) = s3_4 * (cart(i, 0, k) - cart(i, 1, k));
         sphr(i, 4, k) = s3 * cart(i, 3, k);
       }
-      break;
-    
-    default:
-      printf("[Fatal] moment li=%i lj=%i not supported\n", li, lj);
-      assert(false);
-      return;
     }
-    break;
-  default:
-    printf("[Fatal] transform0 not supported for li=%d lj=%d\n", li, lj);
-    assert(false);
     return;
   }
-  /* TODO: Support the rest of the transform cases*/
+  else if (li == 1 && lj == 2)
+  {
+    for(int i = 0; i < cart.dim1; ++i)
+    {
+      for (int k = 0; k < cart.dim3; ++k)
+      {
+        sphr(i, 0, k) = cart(i, 2, k) - 0.5 * (cart(i, 0, k) + cart(i, 1, k));
+        sphr(i, 1, k) = s3 * cart(i, 4, k);
+        sphr(i, 2, k) = s3 * cart(i, 5, k);
+        sphr(i, 3, k) = s3_4 * (cart(i, 0, k) - cart(i, 1, k));
+        sphr(i, 4, k) = s3 * cart(i, 3, k);
+      }
+    }
+    return;
+  }
+  else if(li == 2 && lj <= 1)
+  {
+    for(int i = 0; i < cart.dim2; ++i)
+    {
+      for (int k = 0; k < cart.dim3; ++k)
+      {
+        sphr(0, i, k) = cart(2, i, k) - 0.5 * (cart(0, i, k) + cart(1, i, k));
+        sphr(1, i, k) = s3 * cart(4, i, k);
+        sphr(2, i, k) = s3 * cart(5, i, k);
+        sphr(3, i, k) = s3_4 * (cart(0, i, k) - cart(1, i, k));
+        sphr(4, i, k) = s3 * cart(3, i, k);
+      }
+    }
+  } else if (li == 2 && lj == 2)
+  {
+    printf("⚠️ transforms at li=2 lj=2 are not yet implemented\n");
+  }
+  else
+  {
+    printf("[Fatal] transform1 not supported for li=%d lj=%d\n", li, lj);
+    assert(false);
+  }
 }
 
 
@@ -296,15 +353,6 @@ __device__ inline void multipole_3d(
   q3d[5] = v1d[0][0] * v1d[1][0] * v1d[2][2];
 }
 
-template <typename T>
-__device__ inline void transform1(int lj, int li, 
-  const device_tensor3d_t<T> &cart, device_tensor3d_t<T> &sphr)
-{
-  for(int k = 0; k < cart.dim1; ++k)
-  {
-    transform0(lj, li, k, cart, sphr);
-  }
-}
 __device__ void multipole_cgto(
   const cgto_type &cgtoj,
   const cgto_type &cgtoi,
@@ -454,9 +502,9 @@ __device__ void multipole_cgto(
     }
   }
   
-  transform0(cgtoj.ang, cgtoi.ang, /*cart=*/s3d, /*sphr=*/overlap);
-  transform1(cgtoj.ang, cgtoi.ang, d3d, dpint);
-  transform1(cgtoj.ang, cgtoi.ang, q3d, qpint);
+  transform0(cgtoi.ang, cgtoj.ang, /*cart=*/s3d, /*sphr=*/overlap);
+  transform1(cgtoi.ang, cgtoj.ang, d3d, dpint);
+  transform1(cgtoi.ang, cgtoj.ang, q3d, qpint);
 
 
   for (int mli = 0; mli < msao[cgtoi.ang]; ++mli)

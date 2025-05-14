@@ -36,12 +36,23 @@ public:
   }
 
   __device__ inline T &operator()(int i, int j)
-  {
+  {    
+    if(i < 0 || i >= dim1 || j < 0 || j >= dim2)
+    {
+      printf("Indexing error: (%i, %i) out of bounds for tensor of size (%i, %i)\n", i, j, dim1, dim2);
+      assert(false);
+    }
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2);
     return data[i * dim2 + j];
   }
   __device__ inline const T &operator()(int i, int j) const
   {
+    // need more verbose error message
+    if(i < 0 || i >= dim1 || j < 0 || j >= dim2)
+    {
+      printf("Indexing error: (%i, %i) out of bounds for tensor of size (%i, %i)\n", i, j, dim1, dim2);
+      assert(false);
+    }
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2);
     return data[i * dim2 + j];
   }
@@ -106,11 +117,21 @@ public:
   }
   __device__ inline T &operator()(int i, int j, int k)
   {
+    if(i < 0 || i >= dim1 || j < 0 || j >= dim2 || k < 0 || k >= dim3)
+    {
+      printf("Indexing error: (%i, %i, %i) out of bounds for tensor of size (%i, %i, %i)\n", i, j, k, dim1, dim2, dim3);
+      assert(false);
+    }
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3);
     return data[i * dim2 * dim3 + j * dim3 + k];
   }
   __device__ inline const T &operator()(int i, int j, int k) const
   {
+    if (i < 0 || i >= dim1 || j < 0 || j >= dim2 || k < 0 || k >= dim3)
+    {
+      printf("Indexing error: (%i, %i, %i) out of bounds for tensor of size (%i, %i, %i)\n", i, j, k, dim1, dim2, dim3);
+      assert(false);
+    }
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3);
     return data[i * dim2 * dim3 + j * dim3 + k];
   }
