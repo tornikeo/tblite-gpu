@@ -7,32 +7,7 @@
 #include "device_tensor.h"
 #include "types.h"
 
-/* 
-@brief performs C = A @ B**T
-*/
-template <size_t N, size_t M>
-__device__ inline void matmul(
-  const device_tensor2d_t<double> &A,
-  const double (&B)[N][M],
-  device_tensor2d_t<double> &C
-)
-{
-  for (int i = 0; i < A.dim1; ++i)
-  {
-    for (int j = 0; j < A.dim2; ++j)
-    {
-      double sum = 0.0;
-      for (int k = 0; k < N; ++k)
-      {
-        sum += A(i, k) * B[j][k]; // second is transposed
-      }
-      C(i, j) = sum;
-    }
-  }
-}
 
-// sphr(5, :) = dtrafo(5,6) @ cart(6, :) fort
-// sphr(:, 5) = dtrafo(6,5) @ cart( :) C
 template <typename T>
 __device__ inline void transform0(const int li, const int lj, const device_tensor2d_t<T> &cart,  device_tensor2d_t<T> &sphr)
 {
@@ -81,8 +56,9 @@ __device__ inline void transform0(const int li, const int lj, const device_tenso
       + 0.25 * (cart(1,1,'f') + cart(1,2,'f') + cart(2,1,'f') + cart(2,2,'f'));
     // sphr([2, 3, 5], 1) = s3 * cart([5, 6, 4], 3) &
     //   & - s3_4 * (cart([5, 6, 4], 1) + cart([5, 6, 4], 2))
-    for(int i = 2; i < 5; ++i)
-      sphr(i,1,'f') = s3 * cart(i+2,3,'f') - s3_4 * (cart(i+2,1,'f') + cart(i+2,2,'f'));
+    sphr(2, 1,'f') = s3 * cart(5, 3,'f') - s3_4 * (cart(5, 1,'f') + cart(5, 2,'f'));
+    sphr(3, 1,'f') = s3 * cart(6, 3,'f') - s3_4 * (cart(6, 1,'f') + cart(6, 2,'f'));
+    sphr(5, 1,'f') = s3 * cart(4, 3,'f') - s3_4 * (cart(4, 1,'f') + cart(4, 2,'f'));
     // sphr(4, 1) = s3_4 * (cart(1, 3) - cart(2, 3)) &
     //   & - s3 * 0.25_wp * (cart(1, 1) - cart(2, 1) + cart(1, 2) - cart(2, 2))
     sphr(4,1,'f') = s3_4 * (cart(1,3,'f') - cart(2,3,'f'))
@@ -92,7 +68,7 @@ __device__ inline void transform0(const int li, const int lj, const device_tenso
     // sphr([2, 3, 5], 2) = 3 * cart([5, 6, 4], 5)
     sphr(2, 2,'f') = 3 * cart(5, 5,'f');
     sphr(3, 2,'f') = 3 * cart(6, 5,'f');
-    sphr(4, 2,'f') = 3 * cart(4, 5,'f');
+    sphr(5, 2,'f') = 3 * cart(4, 5,'f');
     // sphr(4, 2) = 1.5_wp * (cart(1, 5) - cart(2, 5))
     sphr(4,2,'f') = 1.5 * (cart(1,5,'f') - cart(2,5,'f'));
     // sphr(1, 3) = s3 * cart(3, 6) - s3_4 * (cart(1, 6) + cart(2, 6))
@@ -100,7 +76,7 @@ __device__ inline void transform0(const int li, const int lj, const device_tenso
     // sphr([2, 3, 5], 3) = 3 * cart([5, 6, 4], 6)
     sphr(2, 3,'f') = 3 * cart(5, 6,'f');
     sphr(3, 3,'f') = 3 * cart(6, 6,'f');
-    sphr(4, 3,'f') = 3 * cart(4, 6,'f');
+    sphr(5, 3,'f') = 3 * cart(4, 6,'f');
     // sphr(4, 3) = 1.5_wp * (cart(1, 6) - cart(2, 6))
     sphr(4,3,'f') = 1.5 * (cart(1,6,'f') - cart(2,6,'f'));
     // sphr(1, 4) = s3_4 * (cart(3, 1) - cart(3, 2)) &
@@ -110,7 +86,7 @@ __device__ inline void transform0(const int li, const int lj, const device_tenso
     // sphr([2, 3, 5], 4) = 1.5_wp * (cart([5, 6, 4], 1) - cart([5, 6, 4], 2))
     sphr(2, 4,'f') = 1.5 * (cart(5, 1,'f') - cart(5, 2,'f'));
     sphr(3, 4,'f') = 1.5 * (cart(6, 1,'f') - cart(6, 2,'f'));
-    sphr(4, 4,'f') = 1.5 * (cart(4, 1,'f') - cart(4, 2,'f'));
+    sphr(5, 4,'f') = 1.5 * (cart(4, 1,'f') - cart(4, 2,'f'));
     // sphr(4, 4) = 0.75_wp * (cart(1, 1) - cart(2, 1) - cart(1, 2) + cart(2, 2))
     sphr(4,4,'f') = 0.75 * (cart(1,1,'f') - cart(2,1,'f') - cart(1,2,'f') + cart(2,2,'f'));
     // sphr(1, 5) = s3 * cart(3, 4) - s3_4 * (cart(1, 4) + cart(2, 4))
@@ -118,7 +94,7 @@ __device__ inline void transform0(const int li, const int lj, const device_tenso
     // sphr([2, 3, 5], 5) = 3 * cart([5, 6, 4], 4)
     sphr(2, 5,'f') = 3 * cart(5, 4,'f');
     sphr(3, 5,'f') = 3 * cart(6, 4,'f');
-    sphr(4, 5,'f') = 3 * cart(4, 4,'f');
+    sphr(5, 5,'f') = 3 * cart(4, 4,'f');
     // sphr(4, 5) = 1.5_wp * (cart(1, 4) - cart(2, 4))
     sphr(4,5,'f') = 1.5 * (cart(1,4,'f') - cart(2,4,'f'));
   } 

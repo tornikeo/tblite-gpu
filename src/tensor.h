@@ -131,7 +131,7 @@ public:
       printf("[");
       for (int j = 0; j < dim2; ++j)
       {
-        printf("%f, ", static_cast<double>(data[i * dim2 + j]));
+        printf("% 8.4f, ", static_cast<double>(data[i * dim2 + j]));
       }
       printf(i == dim1 - 1 ? "]" : "],\n ");
     }
