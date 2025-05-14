@@ -69,27 +69,58 @@ __device__ inline void transform0(const int li, const int lj, const device_tenso
       sphr(4, i) = s3 * cart(3, i);
     }
   } else if (li == 2 && lj == 2) {
-    printf("⚠️ transforms at li=2 lj=2 are not yet implemented\n");
+    // printf("⚠️ transforms at li=2 lj=2 are not yet implemented\n");
+    /* REMEMBER 
+      i,j -> i-1, j-1, due to Fortran indexing
+    */
     // sphr(1, 1) = cart(3, 3) &
     //   & - 0.5_wp * (cart(3, 1) + cart(3, 2) + cart(1, 3) + cart(2, 3)) &
     //   & + 0.25_wp * (cart(1, 1) + cart(1, 2) + cart(2, 1) + cart(2, 2))
+    sphr(1,1,'f') = cart(3,3,'f')
+      - 0.5 * (cart(3,1,'f') + cart(3,2,'f') + cart(1,3,'f') + cart(2,3,'f'))
+      + 0.25 * (cart(1,1,'f') + cart(1,2,'f') + cart(2,1,'f') + cart(2,2,'f'));
     // sphr([2, 3, 5], 1) = s3 * cart([5, 6, 4], 3) &
     //   & - s3_4 * (cart([5, 6, 4], 1) + cart([5, 6, 4], 2))
+    for(int i = 2; i < 5; ++i)
+      sphr(i,1,'f') = s3 * cart(i+2,3,'f') - s3_4 * (cart(i+2,1,'f') + cart(i+2,2,'f'));
     // sphr(4, 1) = s3_4 * (cart(1, 3) - cart(2, 3)) &
     //   & - s3 * 0.25_wp * (cart(1, 1) - cart(2, 1) + cart(1, 2) - cart(2, 2))
+    sphr(4,1,'f') = s3_4 * (cart(1,3,'f') - cart(2,3,'f'))
+      - s3 * 0.25 * (cart(1,1,'f') - cart(2,1,'f') + cart(1,2,'f') - cart(2,2,'f'));
     // sphr(1, 2) = s3 * cart(3, 5) - s3_4 * (cart(1, 5) + cart(2, 5))
+    sphr(1,2,'f') = s3 * cart(3,5,'f') - s3_4 * (cart(1,5,'f') + cart(2,5,'f'));
     // sphr([2, 3, 5], 2) = 3 * cart([5, 6, 4], 5)
+    sphr(2, 2,'f') = 3 * cart(5, 5,'f');
+    sphr(3, 2,'f') = 3 * cart(6, 5,'f');
+    sphr(4, 2,'f') = 3 * cart(4, 5,'f');
     // sphr(4, 2) = 1.5_wp * (cart(1, 5) - cart(2, 5))
+    sphr(4,2,'f') = 1.5 * (cart(1,5,'f') - cart(2,5,'f'));
     // sphr(1, 3) = s3 * cart(3, 6) - s3_4 * (cart(1, 6) + cart(2, 6))
+    sphr(1,3,'f') = s3 * cart(3,6,'f') - s3_4 * (cart(1,6,'f') + cart(2,6,'f'));
     // sphr([2, 3, 5], 3) = 3 * cart([5, 6, 4], 6)
+    sphr(2, 3,'f') = 3 * cart(5, 6,'f');
+    sphr(3, 3,'f') = 3 * cart(6, 6,'f');
+    sphr(4, 3,'f') = 3 * cart(4, 6,'f');
     // sphr(4, 3) = 1.5_wp * (cart(1, 6) - cart(2, 6))
+    sphr(4,3,'f') = 1.5 * (cart(1,6,'f') - cart(2,6,'f'));
     // sphr(1, 4) = s3_4 * (cart(3, 1) - cart(3, 2)) &
     //   & - s3 * 0.25_wp * (cart(1, 1) - cart(1, 2) + cart(2, 1) - cart(2, 2))
+    sphr(1,4,'f') = s3_4 * (cart(3,1,'f') - cart(3,2,'f'))
+      - s3 * 0.25 * (cart(1,1,'f') - cart(1,2,'f') + cart(2,1,'f') - cart(2,2,'f'));
     // sphr([2, 3, 5], 4) = 1.5_wp * (cart([5, 6, 4], 1) - cart([5, 6, 4], 2))
+    sphr(2, 4,'f') = 1.5 * (cart(5, 1,'f') - cart(5, 2,'f'));
+    sphr(3, 4,'f') = 1.5 * (cart(6, 1,'f') - cart(6, 2,'f'));
+    sphr(4, 4,'f') = 1.5 * (cart(4, 1,'f') - cart(4, 2,'f'));
     // sphr(4, 4) = 0.75_wp * (cart(1, 1) - cart(2, 1) - cart(1, 2) + cart(2, 2))
+    sphr(4,4,'f') = 0.75 * (cart(1,1,'f') - cart(2,1,'f') - cart(1,2,'f') + cart(2,2,'f'));
     // sphr(1, 5) = s3 * cart(3, 4) - s3_4 * (cart(1, 4) + cart(2, 4))
+    sphr(1,5,'f') = s3 * cart(3,4,'f') - s3_4 * (cart(1,4,'f') + cart(2,4,'f'));
     // sphr([2, 3, 5], 5) = 3 * cart([5, 6, 4], 4)
+    sphr(2, 5,'f') = 3 * cart(5, 4,'f');
+    sphr(3, 5,'f') = 3 * cart(6, 4,'f');
+    sphr(4, 5,'f') = 3 * cart(4, 4,'f');
     // sphr(4, 5) = 1.5_wp * (cart(1, 4) - cart(2, 4))
+    sphr(4,5,'f') = 1.5 * (cart(1,4,'f') - cart(2,4,'f'));
   } 
   else {
     printf("[Fatal] transform0 not supported for li=%d lj=%d\n", li, lj);
@@ -160,7 +191,58 @@ __device__ inline void transform1(const int li, const int lj, const device_tenso
     }
   } else if (li == 2 && lj == 2)
   {
-    printf("⚠️ transforms at li=2 lj=2 are not yet implemented\n");
+    // printf("⚠️ transforms at li=2 lj=2 are not yet implemented\n");
+
+    for(int k = 1; k <= cart.dim3; k++)
+    {
+      // sphr(1, 1) = cart(3, 3) &
+      //   & - 0.5_wp * (cart(3, 1) + cart(3, 2) + cart(1, 3) + cart(2, 3)) &
+      //   & + 0.25_wp * (cart(1, 1) + cart(1, 2) + cart(2, 1) + cart(2, 2))
+      sphr(k, 1, 1, 'f') = cart(k, 3, 3, 'f')
+        - 0.5 * (cart(k, 3, 1, 'f') + cart(k, 3, 2, 'f') + cart(k, 1, 3, 'f') + cart(k, 2, 3, 'f'))
+        + 0.25 * (cart(k, 1, 1, 'f') + cart(k, 1, 2, 'f') + cart(k, 2, 1, 'f') + cart(k, 2, 2, 'f'));
+      // sphr([2, 3, 5], 1) = s3 * cart([5, 6, 4], 3) &
+      //   & - s3_4 * (cart([5, 6, 4], 1) + cart([5, 6, 4], 2))
+      sphr(k, 2, 1, 'f') = s3 * cart(k, 5, 3, 'f') - s3_4 * (cart(k, 5, 1, 'f') + cart(k, 5, 2, 'f'));
+      sphr(k, 3, 1, 'f') = s3 * cart(k, 6, 3, 'f') - s3_4 * (cart(k, 6, 1, 'f') + cart(k, 6, 2, 'f'));
+      sphr(k, 5, 1, 'f') = s3 * cart(k, 4, 3, 'f') - s3_4 * (cart(k, 4, 1, 'f') + cart(k, 4, 2, 'f'));
+      // sphr(4, 1) = s3_4 * (cart(1, 3) - cart(2, 3)) &
+      //   & - s3 * 0.25_wp * (cart(1, 1) - cart(2, 1) + cart(1, 2) - cart(2, 2))
+      sphr(k, 4, 1, 'f') = s3_4 * (cart(k, 1, 3, 'f') - cart(k, 2, 3, 'f'))
+        - s3 * 0.25 * (cart(k, 1, 1, 'f') - cart(k, 2, 1, 'f') + cart(k, 1, 2, 'f') - cart(k, 2, 2, 'f'));
+      // sphr(1, 2) = s3 * cart(3, 5) - s3_4 * (cart(1, 5) + cart(2, 5))
+      sphr(k, 1, 2, 'f') = s3 * cart(k, 3, 5, 'f') - s3_4 * (cart(k, 1, 5, 'f') + cart(k, 2, 5, 'f'));
+      // sphr([2, 3, 5], 2) = 3 * cart([5, 6, 4], 5)
+      sphr(k, 2, 2, 'f') = 3 * cart(k, 5, 5, 'f');
+      sphr(k, 3, 2, 'f') = 3 * cart(k, 6, 5, 'f');
+      sphr(k, 5, 2, 'f') = 3 * cart(k, 4, 5, 'f');
+      // sphr(4, 2) = 1.5_wp * (cart(1, 5) - cart(2, 5))
+      sphr(k, 4, 2, 'f') = 1.5 * (cart(k, 1, 5, 'f') - cart(k, 2, 5, 'f'));
+      // sphr(1, 3) = s3 * cart(3, 6) - s3_4 * (cart(1, 6) + cart(2, 6))
+      sphr(k, 1, 3, 'f') = s3 * cart(k, 3, 6, 'f') - s3_4 * (cart(k, 1, 6, 'f') + cart(k, 2, 6, 'f'));
+      // sphr([2, 3, 5], 3) = 3 * cart([5, 6, 4], 6)
+      sphr(k, 2, 3, 'f') = 3 * cart(k, 5, 6, 'f');
+      // sphr(4, 3) = 1.5_wp * (cart(1, 6) - cart(2, 6))
+      sphr(k, 4, 3, 'f') = 1.5 * (cart(k, 1, 6, 'f') - cart(k, 2, 6, 'f'));
+      // sphr(1, 4) = s3_4 * (cart(3, 1) - cart(3, 2)) &
+      //   & - s3 * 0.25_wp * (cart(1, 1) - cart(1, 2) + cart(2, 1) - cart(2, 2))
+      sphr(k, 1, 4, 'f') = s3_4 * (cart(k, 3, 1, 'f') - cart(k, 3, 2, 'f'))
+        - s3 * 0.25 * (cart(k, 1, 1, 'f') - cart(k, 1, 2, 'f') + cart(k, 2, 1, 'f') - cart(k, 2, 2, 'f'));
+      // sphr([2, 3, 5], 4) = 1.5_wp * (cart([5, 6, 4], 1) - cart([5, 6, 4], 2))
+      sphr(k, 2, 4, 'f') = 1.5 * (cart(k, 5, 1, 'f') - cart(k, 5, 2, 'f'));
+      sphr(k, 3, 4, 'f') = 1.5 * (cart(k, 6, 1, 'f') - cart(k, 6, 2, 'f'));
+      sphr(k, 5, 4, 'f') = 1.5 * (cart(k, 4, 1, 'f') - cart(k, 4, 2, 'f'));
+      // sphr(4, 4) = 0.75_wp * (cart(1, 1) - cart(2, 1) - cart(1, 2) + cart(2, 2))
+      sphr(k, 4, 4, 'f') = 0.75 * (cart(k, 1, 1, 'f') - cart(k, 2, 1, 'f') - cart(k, 1, 2, 'f') + cart(k, 2, 2, 'f'));
+      // sphr(1, 5) = s3 * cart(3, 4) - s3_4 * (cart(1, 4) + cart(2, 4))
+      sphr(k, 1, 5, 'f') = s3 * cart(k, 3, 4, 'f') - s3_4 * (cart(k, 1, 4, 'f') + cart(k, 2, 4, 'f'));
+      // sphr([2, 3, 5], 5) = 3 * cart([5, 6, 4], 4)
+      sphr(k, 2, 5, 'f') = 3 * cart(k, 5, 4, 'f');
+      sphr(k, 3, 5, 'f') = 3 * cart(k, 6, 4, 'f');
+      sphr(k, 5, 5, 'f') = 3 * cart(k, 4, 4, 'f');
+      // sphr(4, 5) = 1.5_wp * (cart(1, 4) - cart(2, 4))
+      sphr(k, 4, 5, 'f') = 1.5 * (cart(k, 1, 4, 'f') - cart(k, 2, 4, 'f'));
+    }
   }
   else
   {

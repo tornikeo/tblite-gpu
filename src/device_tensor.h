@@ -35,6 +35,17 @@ public:
     return *this;
   }
 
+  __device__ inline T &operator()(int j, int i, char type)
+  {    
+    assert(type == 'f' || type == 'F'); // f for fortran
+    if(i < 1 || i > dim1 || j < 1 || j > dim2)
+    {
+      printf("FORTRAN indexing error: (%i, %i) out of bounds for tensor of size (%i, %i)\n", i, j, dim1, dim2);
+      assert(false);
+    }
+    return data[(i - 1) * dim2 + (j - 1)];
+  }
+
   __device__ inline T &operator()(int i, int j)
   {    
     if(i < 0 || i >= dim1 || j < 0 || j >= dim2)
@@ -45,6 +56,19 @@ public:
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2);
     return data[i * dim2 + j];
   }
+
+  __device__ inline const T &operator()(int j, int i, char type) const
+  {
+    assert(type == 'f' || type == 'F'); // f for fortran
+    if(i < 1 || i > dim1 || j < 1 || j > dim2)
+    {
+      printf("FORTRAN indexing error: (%i, %i) out of bounds for tensor of size (%i, %i)\n", i, j, dim1, dim2);
+      assert(false);
+    }
+    assert(i >= 1 && i <= dim1 && j >= 1 && j <= dim2);
+    return data[(i - 1) * dim2 + (j - 1)];
+  }
+
   __device__ inline const T &operator()(int i, int j) const
   {
     // need more verbose error message
@@ -81,7 +105,6 @@ public:
   }
 };
 
-
 /* 3D tensor class */
 template <typename T>
 class device_tensor3d_t
@@ -102,6 +125,8 @@ public:
     free(data);
   }
 
+  /* Proxy for transposed indexing */
+  
   __device__ device_tensor3d_t(const device_tensor3d_t &other)
   {
     // Warn on use, we shouldn't need this!
@@ -115,6 +140,19 @@ public:
     assert(false && "Assignment operator should not be used!");
     return *this;
   }
+
+  __device__ inline T &operator()(int k, int j, int i, char type)
+  {    
+    assert(type == 'f' || type == 'F'); // f for fortran
+    if(i < 1 || i > dim1 || j < 1 || j > dim2 || k < 1 || k > dim3)
+    {
+      printf("FORTRAN indexing error: (%i, %i, %i) out of bounds for tensor of size (%i, %i, %i)\n", k, j, i, dim3, dim2, dim1);
+      assert(false);
+    }
+    assert(i >= 1 && i <= dim1 && j >= 1 && j <= dim2 && k >= 1 && k <= dim3);
+    return data[(i - 1) * dim2 * dim3 + (j - 1) * dim3 + (k - 1)];
+  }
+
   __device__ inline T &operator()(int i, int j, int k)
   {
     if(i < 0 || i >= dim1 || j < 0 || j >= dim2 || k < 0 || k >= dim3)
@@ -125,6 +163,19 @@ public:
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3);
     return data[i * dim2 * dim3 + j * dim3 + k];
   }
+
+  __device__ inline const T &operator()(int k, int j, int i, char type) const
+  {
+    assert(type == 'f' || type == 'F'); // f for fortran
+    if(i < 1 || i > dim1 || j < 1 || j > dim2 || k < 1 || k > dim3)
+    {
+      printf("FORTRAN indexing error: (%i, %i, %i) out of bounds for tensor of size (%i, %i, %i)\n", k, j, i, dim3, dim2, dim1);
+      assert(false);
+    }
+    assert(i >= 1 && i <= dim1 && j >= 1 && j <= dim2 && k >= 1 && k <= dim3);
+    return data[(i - 1) * dim2 * dim3 + (j - 1) * dim3 + (k - 1)];
+  }
+
   __device__ inline const T &operator()(int i, int j, int k) const
   {
     if (i < 0 || i >= dim1 || j < 0 || j >= dim2 || k < 0 || k >= dim3)
