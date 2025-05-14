@@ -9,10 +9,18 @@
 
 
 template <typename T>
-__device__ inline void transform0(const int lj, const int li, const device_tensor2d_t<T> &cart, device_tensor2d_t<T> &sphr)
+__device__ inline void transform0(
+  const int lj, const int li, 
+  const device_tensor2d_t<T> &cart, 
+  device_tensor2d_t<T> &sphr)
 {
   constexpr T s3 = 1.7320508075688772; // sqrt(3)
   constexpr T s3_4 = 0.6123724356957945; // sqrt(3)/2
+  printf("cart(%d, %d) sphr(%d, %d) %s %s:%d\n", cart.dim1, cart.dim2, sphr.dim1, sphr.dim2, __func__, __FILE__, __LINE__);
+  /* sphr is a larger array. It contains the max size that an integral might need
+  so iterate over smaller cart dims instead*/
+  assert(sphr.dim1 >= cart.dim1); 
+  assert(sphr.dim2 >= cart.dim2);
   switch (li)
   {
   case 0:
@@ -29,10 +37,18 @@ __device__ inline void transform0(const int lj, const int li, const device_tenso
           sphr(i, j) = cart(i, j);
         }
       }
+      printf("sphr = \n");
+      for (int i = 0; i < cart.dim1; ++i)
+      {
+        for (int j = 0; j < cart.dim2; ++j)
+        {
+          printf("%f, ", sphr(i, j));
+        }
+        printf("\n");
+      }
       break;
     case 2:
       // sphr = matmul(dtrafo, cart)
-      assert(sphr.dim1 == cart.dim1);
       for(int i = 0; i < cart.dim1; ++i)
       {
         sphr(i, 0) = cart(i, 2) - 0.5 * (cart(i, 0) + cart(i, 1));
@@ -107,31 +123,6 @@ __device__ inline void transform0(int lj, int li, int k, const device_tensor3d_t
 }
 
 
-
-/*pure subroutine horizontal_shift(ae, l, cfs)
-   integer, intent(in) :: l
-   real(wp), intent(in) :: ae
-   real(wp), intent(inout) :: cfs(*)
-   select case(l)
-   case(0) ! s
-      continue
-   case(1) ! p
-      cfs(1)=cfs(1)+ae*cfs(2)
-   case(2) ! d
-      cfs(1)=cfs(1)+ae*ae*cfs(3)
-      cfs(2)=cfs(2)+ 2*ae*cfs(3)
-   case(3) ! f
-      cfs(1)=cfs(1)+ae*ae*ae*cfs(4)
-      cfs(2)=cfs(2)+ 3*ae*ae*cfs(4)
-      cfs(3)=cfs(3)+ 3*ae*cfs(4)
-   case(4) ! g
-      cfs(1)=cfs(1)+ae*ae*ae*ae*cfs(5)
-      cfs(2)=cfs(2)+ 4*ae*ae*ae*cfs(5)
-      cfs(3)=cfs(3)+ 6*ae*ae*cfs(5)
-      cfs(4)=cfs(4)+ 4*ae*cfs(5)
-   end select
-end subroutine horizontal_shift*/
-
 __device__ inline void horizontal_shift(const double ae, const int l, double (&cfs)[MAXL])
 {
   switch (l)
@@ -162,98 +153,6 @@ __device__ inline void horizontal_shift(const double ae, const int l, double (&c
     return;
   }
 }
-
-/*
-pure subroutine form_product(a, b, la, lb, d)
-   real(wp), intent(in) :: a(*), b(*)
-   integer, intent(in) :: la, lb
-   real(wp), intent(inout) :: d(*)
-   if(la.ge.4.or.lb.ge.4) goto 40
-   if(la.ge.3.or.lb.ge.3) goto 30
-   if(la.ge.2.or.lb.ge.2) goto 20
-   ! <s|s> = <s>
-   d(1)=a(1)*b(1)
-   if(la.eq.0.and.lb.eq.0) return
-   ! <s|p> = <s|*(|s>+|p>)
-   !       = <s> + <p>
-   d(2)=a(1)*b(2)+a(2)*b(1)
-   if(la.eq.0.or.lb.eq.0) return
-   ! <p|p> = (<s|+<p|)*(|s>+|p>)
-   !       = <s> + <p> + <d>
-   d(3)=a(2)*b(2)
-   return
-20 continue
-   ! <s|d> = <s|*(|s>+|p>+|d>)
-   !       = <s> + <p> + <d>
-   d(1)=a(1)*b(1)
-   d(2)=a(1)*b(2)+a(2)*b(1)
-   d(3)=a(1)*b(3)+a(3)*b(1)
-   if(la.eq.0.or.lb.eq.0) return
-   ! <p|d> = (<s|+<p|)*(|s>+|p>+|d>)
-   !       = <s> + <p> + <d> + <f>
-   d(3)=d(3)+a(2)*b(2)
-   d(4)=a(2)*b(3)+a(3)*b(2)
-   if(la.le.1.or.lb.le.1) return
-   ! <d|d> = (<s|+<p|+<d|)*(|s>+|p>+|d>)
-   !       = <s> + <p> + <d> + <f> + <g>
-   d(5)=a(3)*b(3)
-   return
-30 continue
-   ! <s|f> = <s|*(|s>+|p>+|d>+|f>)
-   !       = <s> + <p> + <d> + <f>
-   d(1)=a(1)*b(1)
-   d(2)=a(1)*b(2)+a(2)*b(1)
-   d(3)=a(1)*b(3)+a(3)*b(1)
-   d(4)=a(1)*b(4)+a(4)*b(1)
-   if(la.eq.0.or.lb.eq.0) return
-   ! <p|f> = (<s|+<p|)*(|s>+|p>+|d>+|f>)
-   !       = <s> + <p> + <d> + <f> + <g>
-   d(3)=d(3)+a(2)*b(2)
-   d(4)=d(4)+a(2)*b(3)+a(3)*b(2)
-   d(5)=a(2)*b(4)+a(4)*b(2)
-   if(la.le.1.or.lb.le.1) return
-   ! <d|f> = (<s|+<p|+<d|)*(|s>+|p>+|d>+|f>)
-   !       = <s> + <p> + <d> + <f> + <g> + <h>
-   d(5)=d(5)+a(3)*b(3)
-   d(6)=a(3)*b(4)+a(4)*b(3)
-   if(la.le.2.or.lb.le.2) return
-   ! <f|f> = (<s|+<p|+<d|+<f|)*(|s>+|p>+|d>+|f>)
-   !       = <s> + <p> + <d> + <f> + <g> + <h> + <i>
-   d(7)=a(4)*b(4)
-   return
-40 continue
-   ! <s|g> = <s|*(|s>+|p>+|d>+|f>+|g>)
-   !       = <s> + <p> + <d> + <f> + <g>
-   d(1)=a(1)*b(1)
-   d(2)=a(1)*b(2)+a(2)*b(1)
-   d(3)=a(1)*b(3)+a(3)*b(1)
-   d(4)=a(1)*b(4)+a(4)*b(1)
-   d(5)=a(1)*b(5)+a(5)*b(1)
-   if(la.eq.0.or.lb.eq.0) return
-   ! <p|g> = (<s|+<p|)*(|s>+|p>+|d>+|f>+|g>)
-   !       = <s> + <p> + <d> + <f> + <g> + <h>
-   d(3)=d(3)+a(2)*b(2)
-   d(4)=d(4)+a(2)*b(3)+a(3)*b(2)
-   d(5)=d(5)+a(2)*b(4)+a(4)*b(2)
-   d(6)=a(2)*b(5)+a(5)*b(2)
-   if(la.le.1.or.lb.le.1) return
-   ! <d|g> = (<s|+<p|+<d|)*(|s>+|p>+|d>+|f>+|g>)
-   !       = <s> + <p> + <d> + <f> + <g> + <h> + <i>
-   d(5)=d(5)+a(3)*b(3)
-   d(6)=d(5)+a(3)*b(4)+a(4)*b(3)
-   d(7)=a(3)*b(5)+a(5)*b(3)
-   if(la.le.2.or.lb.le.2) return
-   ! <f|g> = (<s|+<p|+<d|+<f|)*(|s>+|p>+|d>+|f>+|g>)
-   !       = <s> + <p> + <d> + <f> + <g> + <h> + <i> + <k>
-   d(7)=d(7)+a(4)*b(4)
-   d(8)=a(4)*b(5)+a(5)*b(4)
-   if(la.le.3.or.lb.le.3) return
-   ! <g|g> = (<s|+<p|+<d|+<f|+<g|)*(|s>+|p>+|d>+|f>+|g>)
-   !       = <s> + <p> + <d> + <f> + <g> + <h> + <i> + <k> + <l>
-   d(9)=a(5)*b(5)
-
-end subroutine form_product
-*/
 
 __device__ inline void form_product(
   const double (&a)[MAXL],
@@ -349,11 +248,7 @@ label_40:
 
 __device__ inline double overlap_1d(int moment, double alpha)
 {
-  // integer, intent(in) :: moment
-  // real(wp), intent(in) :: alpha
   double overlap = 0.0;
-  // real(wp), parameter :: dfactorial(0:7) = & ! see OEIS A001147
-  //   & [1._wp,1._wp,3._wp,15._wp,105._wp,945._wp,10395._wp,135135._wp]
   constexpr double dfactorial[8] = {1.0, 1.0, 3.0, 15.0, 105.0, 945.0, 10395.0, 135135.0};
   assert(moment >= 0 && moment <= 7);
   if (moment % 2 == 0)
@@ -363,7 +258,6 @@ __device__ inline double overlap_1d(int moment, double alpha)
 
   return overlap;
 }
-
 
 __device__ inline void multipole_3d(
   const double (&rpj)[3],
@@ -377,29 +271,8 @@ __device__ inline void multipole_3d(
   double (&d3d)[3],
   double (&q3d)[6])
 {
-  /*
-   integer :: k, l
-   real(wp) :: vi(0:maxl), vj(0:maxl), vv(0:maxl2), v1d(3, 3)
-
-   v1d(:, :) = 0.0_wp
-*/
-  // double vi[MAXL] = {0.0}, vj[MAXL] = {0.0}, vv[MAXL2] = {0.0}, 
   double v1d[3][3] = {0.0};
-  /*do k = 1, 3
-      vv(:) = 0.0_wp
-      vi(:) = 0.0_wp
-      vj(:) = 0.0_wp
-      vi(li(k)) = 1.0_wp
-      vj(lj(k)) = 1.0_wp
-      call horizontal_shift(rpi(k), li(k), vi)
-      call horizontal_shift(rpj(k), lj(k), vj)
-      call form_product(vi, vj, li(k), lj(k), vv)
-      do l = 0, li(k) + lj(k)
-         v1d(k, 1) = v1d(k, 1) + s1d(l) * vv(l)
-         v1d(k, 2) = v1d(k, 2) + (s1d(l+1) + rpi(k)*s1d(l)) * vv(l)
-         v1d(k, 3) = v1d(k, 3) + (s1d(l+2) + 2*rpi(k)*s1d(l+1) + rpi(k)*rpi(k)*s1d(l)) * vv(l)
-      end do
-   end do*/
+
   for(int k = 0; k < 3; ++k)
   {
     double vv[MAXL2] = {0.0};
@@ -418,22 +291,12 @@ __device__ inline void multipole_3d(
       v1d[k][2] += (s1d[l + 2] + 2 * rpi[k] * s1d[l + 1] + rpi[k] * rpi[k] * s1d[l]) * vv[l];
     }
   }
-  // s3d = v1d(1, 1) * v1d(2, 1) * v1d(3, 1)
   s3d = v1d[0][0] * v1d[1][0] * v1d[2][0];
 
-  // d3d(1) = v1d(1, 2) * v1d(2, 1) * v1d(3, 1)
-  // d3d(2) = v1d(1, 1) * v1d(2, 2) * v1d(3, 1)
-  // d3d(3) = v1d(1, 1) * v1d(2, 1) * v1d(3, 2)
   d3d[0] = v1d[0][1] * v1d[1][0] * v1d[2][0];
   d3d[1] = v1d[0][0] * v1d[1][1] * v1d[2][0];
   d3d[2] = v1d[0][0] * v1d[1][0] * v1d[2][1];
 
-  // q3d(1) = v1d(1, 3) * v1d(2, 1) * v1d(3, 1)
-  // q3d(2) = v1d(1, 2) * v1d(2, 2) * v1d(3, 1)
-  // q3d(3) = v1d(1, 1) * v1d(2, 3) * v1d(3, 1)
-  // q3d(4) = v1d(1, 2) * v1d(2, 1) * v1d(3, 2)
-  // q3d(5) = v1d(1, 1) * v1d(2, 2) * v1d(3, 2)
-  // q3d(6) = v1d(1, 1) * v1d(2, 1) * v1d(3, 3)
   q3d[0] = v1d[0][2] * v1d[1][0] * v1d[2][0];
   q3d[1] = v1d[0][1] * v1d[1][1] * v1d[2][0];
   q3d[2] = v1d[0][0] * v1d[1][2] * v1d[2][0];
@@ -442,47 +305,15 @@ __device__ inline void multipole_3d(
   q3d[5] = v1d[0][0] * v1d[1][0] * v1d[2][2];
 }
 
-
-/*pure subroutine transform1(lj, li, cart, sphr)
-   integer, intent(in) :: li
-   integer, intent(in) :: lj
-   real(wp), intent(in) :: cart(:, :, :)
-   real(wp), intent(out) :: sphr(:, :, :)
-   integer :: k
-
-   do k = 1, size(cart, 1)
-      call transform0(lj, li, cart(k, :, :), sphr(k, :, :))
-   end do
-end subroutine transform1*/
 template <typename T>
 __device__ inline void transform1(int lj, int li, 
   const device_tensor3d_t<T> &cart, device_tensor3d_t<T> &sphr)
 {
   for(int k = 0; k < cart.dim1; ++k)
   {
-    /* cart is of shape tensor3d_t(mlao[cgtoi.ang], mlao[cgtoj.ang], 3); d3d.fill(0.0);
-       shpr is of shape tensor3d_t(nao, nao, 3)*/
     transform0(lj, li, k, cart, sphr);
   }
 }
-
-/*subroutine multipole_cgto(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint)
-   !> Description of contracted Gaussian function on center i
-   type(cgto_type), intent(in) :: cgtoi
-   !> Description of contracted Gaussian function on center j
-   type(cgto_type), intent(in) :: cgtoj
-   !> Square distance between center i and j
-   real(wp), intent(in) :: r2
-   !> Distance vector between center i and j, ri - rj
-   real(wp), intent(in) :: vec(3)
-   !> Maximum value of integral prefactor to consider
-   real(wp), intent(in) :: intcut
-   !> Overlap integrals for the given pair i  and j
-   real(wp), intent(out) :: overlap(msao(cgtoj%ang), msao(cgtoi%ang))
-   !> Dipole moment integrals for the given pair i  and j
-   real(wp), intent(out) :: dpint(3, msao(cgtoj%ang), msao(cgtoi%ang))
-   !> Quadrupole moment integrals for the given pair i  and j
-   real(wp), intent(out) :: qpint(6, msao(cgtoj%ang), msao(cgtoi%ang))*/
 __device__ void multipole_cgto(
   const cgto_type &cgtoj,
   const cgto_type &cgtoi,
@@ -493,33 +324,8 @@ __device__ void multipole_cgto(
   device_tensor3d_t<double> &dpint,
   device_tensor3d_t<double> &qpint)
 {
-  // {
-  //   printf("================== MULTIPOLE_CGTO =================\n");
-  //   printf("bid %i tid %i: multipole_cgto\n", blockIdx.x, threadIdx.x);
-  //   printf("%s:%d: %s\n", __FILE__, __LINE__, __PRETTY_FUNCTION__);
-  //   printf("Parameters\n");
-  //   printf("cgtoj=\n");
-  //   printstruct(cgtoj);
-  //   printf("cgtoi=\n");
-  //   printstruct(cgtoi);
-  //   printf("r2=%f\n", r2);
-  //   printf("vec=%f, %f, %f\n", vec[0], vec[1], vec[2]);
-  //   printf("intcut=%f\n", intcut);
-  //   printf("overlap=\n");
-  //   overlap.print();
-  //   printf("dpint=\n");
-  //   dpint.print();
-  //   printf("qpint=\n");
-  //   qpint.print();
-  //   printf("====================================================\n");
-  // }
-  /*integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
-   integer, parameter :: mlao(0:maxl) = [1, 3, 6, 10, 15, 21, 28]
-   integer, parameter :: lmap(0:maxl) = [0, 1, 4, 10, 20, 35, 56]*/
-  constexpr int msao[] = {0, 1, 3, 5, 7, 9, 11, 13}; /* TODO: continue from here
-  last night we saw that bas.maxl was used as an index to msao
-  msao, being a 0:maxl array, was indexed by bas.maxl. This led to some errors.
-  */
+
+  constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13}; 
   constexpr int mlao[] = {1, 3, 6, 10, 15, 21, 28};
   constexpr int lmap[] = {0, 1, 4, 10, 20, 35, 56};
   constexpr int lx[32][3] = {
@@ -534,36 +340,12 @@ __device__ void multipole_cgto(
     rpj[3] = {0.0}, cc = 0.0, val = 0.0, dip[3] = {0.0}, quad[6] = {0.0}, pre = 0.0, tr = 0.0;
   constexpr double sqrtpi3 = 5.56832799683; // sqrt(pi)**3
 
-  device_tensor2d_t<double> s3d(mlao[cgtoi.ang], mlao[cgtoj.ang]); s3d.fill(0.0);
-  device_tensor3d_t<double> d3d(mlao[cgtoi.ang], mlao[cgtoj.ang], 3); d3d.fill(0.0);
-  device_tensor3d_t<double> q3d(mlao[cgtoi.ang], mlao[cgtoj.ang], 6); q3d.fill(0.0);
+  device_tensor2d_t<double> s3d(mlao[cgtoj.ang], mlao[cgtoi.ang]); s3d.fill(0.0);
+  device_tensor3d_t<double> d3d(mlao[cgtoj.ang], mlao[cgtoi.ang], 3); d3d.fill(0.0);
+  device_tensor3d_t<double> q3d(mlao[cgtoj.ang], mlao[cgtoi.ang], 6); q3d.fill(0.0);
+  printf("cgtoj.ang=%d, mlao[cgtoj.ang]=%d\n", cgtoj.ang, mlao[cgtoj.ang]);
+  printf("cgtoi.ang=%d, mlao[cgtoi.ang]=%d\n", cgtoi.ang, mlao[cgtoi.ang]);
 
-  /*
-  do ip = 1, cgtoi%nprim
-      do jp = 1, cgtoj%nprim
-         eab = cgtoi%alpha(ip) + cgtoj%alpha(jp)
-         oab = 1.0_wp/eab
-         est = cgtoi%alpha(ip) * cgtoj%alpha(jp) * r2 * oab
-         if (est > intcut) cycle
-         pre = exp(-est) * sqrtpi3*sqrt(oab)**3
-         rpi = -vec * cgtoj%alpha(jp) * oab
-         rpj = +vec * cgtoi%alpha(ip) * oab
-         do l = 0, cgtoi%ang + cgtoj%ang + 2
-            s1d(l) = overlap_1d(l, eab)
-         end do
-         cc = cgtoi%coeff(ip) * cgtoj%coeff(jp) * pre
-         do mli = 1, mlao(cgtoi%ang)
-            do mlj = 1, mlao(cgtoj%ang)
-               call multipole_3d(rpj, rpi, cgtoj%alpha(jp), cgtoi%alpha(ip), &
-                  & lx(:, mlj+lmap(cgtoj%ang)), lx(:, mli+lmap(cgtoi%ang)), &
-                  & s1d, val, dip, quad)
-               s3d(mlj, mli) = s3d(mlj, mli) + cc*val
-               d3d(:, mlj, mli) = d3d(:, mlj, mli) + cc*dip
-               q3d(:, mlj, mli) = q3d(:, mlj, mli) + cc*quad
-            end do
-         end do
-      end do
-   end do*/
   for (int ip = 0; ip < cgtoi.nprim; ++ip)
   {
     for (int jp = 0; jp < cgtoj.nprim; ++jp)
@@ -587,56 +369,28 @@ __device__ void multipole_cgto(
       {
         for (int mlj = 0; mlj < mlao[cgtoj.ang]; ++mlj)
         {
-          // {
-          //   printf("================== MULTIPOLE_CGTO INNER LOOP =================\n");
-          //   printf("bid %i tid %i: multipole_cgto inner loop\n", blockIdx.x, threadIdx.x);
-          //   printf("Parameters\n");
-          //   printf("mli=%d, mlj=%d\n", mli, mlj);
-          //   printf("rpi=%f, %f, %f\n", rpi[0], rpi[1], rpi[2]); printf("rpj=%f, %f, %f\n", rpj[0], rpj[1], rpj[2]);
-          //   printf("cgtoj.alpha[%d]=%f, cgtoi.alpha[%d]=%f\n", jp, cgtoj.alpha[jp], ip, cgtoi.alpha[ip]);
-          //   printf("lx[%i][:] = [%i, %i, %i]\n", mlj + lmap[cgtoj.ang], lx[mlj + lmap[cgtoj.ang]][0], lx[mlj + lmap[cgtoj.ang]][1], lx[mlj + lmap[cgtoj.ang]][2]);
-          //   printf("lx[%i][:] = [%i, %i, %i]\n", mli + lmap[cgtoi.ang], lx[mli + lmap[cgtoi.ang]][0], lx[mli + lmap[cgtoi.ang]][1], lx[mli + lmap[cgtoi.ang]][2]);
-          //   printf("==============================================================\n");
-          // }
           multipole_3d(
             rpj, rpi, 
             cgtoj.alpha[jp], cgtoi.alpha[ip], 
             lx[mlj + lmap[cgtoj.ang]], lx[mli + lmap[cgtoi.ang]], 
             s1d, val, dip, quad);
           
-          s3d(mli, mlj) += cc * val;
+          s3d(mlj, mli) += cc * val;
           
           for (size_t k = 0; k < 3; ++k)
-            d3d(mli,mlj,k) += cc * dip[k];
+            d3d(mlj,mli,k) += cc * dip[k];
           for (size_t k = 0; k < 6; ++k)
-            q3d(mli, mlj, k) += cc * quad[k];
+            q3d(mlj, mli, k) += cc * quad[k];
         }
       }
     }
   }
 
-  /*
-   call transform0(cgtoj%ang, cgtoi%ang, s3d, overlap)
-   call transform1(cgtoj%ang, cgtoi%ang, d3d, dpint)
-   call transform1(cgtoj%ang, cgtoi%ang, q3d, qpint)
-  */
-  transform0(cgtoj.ang, cgtoi.ang, s3d, overlap);
-  printf("overlap=\n"); overlap.print();
+  transform0(cgtoj.ang, cgtoi.ang, /*cart=*/s3d, /*sphr=*/overlap);
   transform1(cgtoj.ang, cgtoi.ang, d3d, dpint);
   transform1(cgtoj.ang, cgtoi.ang, q3d, qpint);
 
-  /*! remove trace from quadrupole integrals (transfrom to spherical harmonics and back)
-   do mli = 1, msao(cgtoi%ang)
-      do mlj = 1, msao(cgtoj%ang)
-         tr = 0.5_wp * (qpint(1, mlj, mli) + qpint(3, mlj, mli) + qpint(6, mlj, mli))
-         qpint(1, mlj, mli) = 1.5_wp * qpint(1, mlj, mli) - tr
-         qpint(2, mlj, mli) = 1.5_wp * qpint(2, mlj, mli)
-         qpint(3, mlj, mli) = 1.5_wp * qpint(3, mlj, mli) - tr
-         qpint(4, mlj, mli) = 1.5_wp * qpint(4, mlj, mli)
-         qpint(5, mlj, mli) = 1.5_wp * qpint(5, mlj, mli)
-         qpint(6, mlj, mli) = 1.5_wp * qpint(6, mlj, mli) - tr
-      end do
-   end do*/
+
 
   for (int mli = 0; mli < msao[cgtoi.ang]; ++mli)
   {
@@ -693,53 +447,6 @@ extern "C"
   }
 }
 
-/*!> Shift multipole operator from Ket function (center i) to Bra function (center j),
-!> the multipole operator on the Bra function can be assembled from the lower moments
-!> on the Ket function and the displacement vector using horizontal shift rules.
-   pure subroutine shift_operator(vec, s, di, qi, dj, qj)
-      !> Displacement vector of center i and j
-      real(wp),intent(in) :: vec(:)
-      !> Overlap integral between basis functions
-      real(wp),intent(in) :: s
-      !> Dipole integral with operator on Ket function (center i)
-      real(wp),intent(in) :: di(:)
-      !> Quadrupole integral with operator on Ket function (center i)
-      real(wp),intent(in) :: qi(:)
-      !> Dipole integral with operator on Bra function (center j)
-      real(wp),intent(out) :: dj(:)
-      !> Quadrupole integral with operator on Bra function (center j)
-      real(wp),intent(out) :: qj(:)
-
-      real(wp) :: tr
-
-      ! Create dipole operator on Bra function from Ket function and shift contribution
-      ! due to monopol displacement
-      dj(1) = di(1) + vec(1)*s
-      dj(2) = di(2) + vec(2)*s
-      dj(3) = di(3) + vec(3)*s
-
-      ! For the quadrupole operator on the Bra function we first construct the shift
-      ! contribution from the dipole and monopol displacement, since we have to remove
-      ! the trace contribution from the shift and the moment integral on the Ket function
-      ! is already traceless
-      qj(1) = 2*vec(1)*di(1) + vec(1)**2*s
-      qj(3) = 2*vec(2)*di(2) + vec(2)**2*s
-      qj(6) = 2*vec(3)*di(3) + vec(3)**2*s
-      qj(2) = vec(1)*di(2) + vec(2)*di(1) + vec(1)*vec(2)*s
-      qj(4) = vec(1)*di(3) + vec(3)*di(1) + vec(1)*vec(3)*s
-      qj(5) = vec(2)*di(3) + vec(3)*di(2) + vec(2)*vec(3)*s
-      ! Now collect the trace of the shift contribution
-      tr = 0.5_wp * (qj(1) + qj(3) + qj(6))
-
-      ! Finally, assemble the quadrupole operator on the Bra function from the operator
-      ! on the Ket function and the traceless shift contribution
-      qj(1) = qi(1) + 1.5_wp * qj(1) - tr
-      qj(2) = qi(2) + 1.5_wp * qj(2)
-      qj(3) = qi(3) + 1.5_wp * qj(3) - tr
-      qj(4) = qi(4) + 1.5_wp * qj(4)
-      qj(5) = qi(5) + 1.5_wp * qj(5)
-      qj(6) = qi(6) + 1.5_wp * qj(6) - tr
-   end subroutine shift_operator*/
 template <typename T>
 __device__ inline void shift_operator(
     const int iao, 
@@ -808,27 +515,12 @@ __global__ void get_hamiltonian_inter_atomic(
     // integer, parameter :: msao(0:maxl) = [1, 3, 5, 7, 9, 11, 13]
   }
   const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
-  constexpr int msao[] = {0, 1, 3, 5, 7, 9, 11, 13};
+  constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13};
   double rr = 0.0, r2 = 0.0, vec[3] = {0.0}, cutoff2 = 0.0, hij = 0.0, shpoly = 0.0, dtmpj[3] = {0.0}, qtmpj[6] = {0.0};
 
-  // allocate stmp, dtmpi, qtmpi
-  // printf("bas.maxl = %d\n", bas.maxl);
   device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]); stmp.fill(0.0);
   device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3); dtmpi.fill(0.0);
   device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6); qtmpi.fill(0.0);
-
-  {
-    // stmp.fill(1.0);
-    // dtmpi.fill(2.0);
-    // qtmpi.fill(3.0);
-    // // Assert device tensor works
-    // printf("stmp = \n");
-    // stmp.print();
-    // printf("dtmpi = \n");
-    // dtmpi.print();
-    // printf("qtmpi = \n");
-    // qtmpi.print();
-  }
 
   int iat = thread_id;
   if (iat >= mol.nat)
@@ -842,7 +534,6 @@ __global__ void get_hamiltonian_inter_atomic(
     int itr = alist.nltr[img + inl];
     int jzp = mol.id[jat];
     int js = bas.ish_at[jat];
-
     for (int k = 0; k < 3; ++k)
     {
       vec[k] = mol.xyz(iat, k) - mol.xyz(jat, k) - trans(itr, k);
@@ -856,128 +547,40 @@ __global__ void get_hamiltonian_inter_atomic(
       for (int jsh = 0; jsh < bas.nsh_id[jzp]; ++jsh)
       {
         int jj = bas.iao_sh[js + jsh];
-        // printf("ish = %d, jsh = %d, ii = %d, jj = %d\n", ish, jsh, ii, jj);
-        /*call multipole_cgto(bas%cgto(jsh, jzp), bas%cgto(ish, izp), &
-        & r2, vec, bas%intcut, stmp, dtmpi, qtmpi)
-
-        shpoly = (1.0_wp + h0%shpoly(ish, izp)*rr) &
-            * (1.0_wp + h0%shpoly(jsh, jzp)*rr)
-
-        hij = 0.5_wp * (selfenergy(is+ish) + selfenergy(js+jsh)) &
-            * h0%hscale(jsh, ish, jzp, izp) * shpoly
-
-        nao = msao(bas%cgto(jsh, jzp)%ang)*/
-        const auto &cgtoj = bas.cgto(jzp, jsh); /* TODO: aren't these swapped? */
+        const auto &cgtoj = bas.cgto(jzp, jsh); 
         const auto &cgtoi = bas.cgto(izp, ish);
-        multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
-        // Debug
-        {
-        //   printf("==================== DEBUG ====================\n");
-        //   printf("cgtoj = bas.cgto(%i, %i)\n", jsh, jzp);
-        //   printf("cgtoj = \n");
-        //   printstruct(cgtoj);
-        //   printf("cgtoi = bas.cgto(%i, %i)\n", ish, izp);
-        //   printf("cgtoi = \n");
-        //   printstruct(cgtoi);
-        //   multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
-        //   printf("stmp = \n");
-        //   stmp.print();
-        //   printf("dtmpi = \n");
-        //   dtmpi.print();
-        //   printf("qtmpi = \n");
-        //   qtmpi.print();
-        //   printf("===================== DEBUG ====================\n");
-        // if (printcounter++ > 5) return;
-        // assert(false);
-        }
+        multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, /*overlap=*/stmp, dtmpi, qtmpi);
+
         shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
                  (1.0 + h0.shpoly(jzp, jsh) * rr);
         hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
               h0.hscale(izp, jzp, ish, jsh) * shpoly;
 
         const int nao = msao[bas.cgto(jzp, jsh).ang];
-        /*
-        do iao = 1, msao(bas%cgto(ish, izp)%ang)
-                     do jao = 1, nao
-                        ij = jao + nao*(iao-1)
-                        call shift_operator(vec, stmp(ij), dtmpi(:, ij), qtmpi(:, ij), &
-                        & dtmpj, qtmpj)*/
         for(int iao = 0; iao < msao[bas.cgto(izp, ish).ang]; ++iao)
         {
           for(int jao = 0; jao < nao; ++jao)
           {
-            // ij = jao + nao * iao;
-            // printf("dtmpj = \n");
-            // dtmpj.print();
-            // printf("qtmpj = \n");
-            // qtmpj.print();
-            /* TODO: Implement slicing {}*/
             shift_operator(iao, jao, vec, stmp, dtmpi, qtmpi, dtmpj, qtmpj); 
-            /*overlap(jj+jao, ii+iao) = overlap(jj+jao, ii+iao) &
-                           + stmp(ij)*/
 
-            // if (threadIdx.x == 1)
-            // {
-            //   // printf("stmp = \n");
-            //   // stmp.print();
-            //   // printf("dtmpi = \n");
-            //   // dtmpi.print();
-            //   // printf("qtmpi = \n");
-            //   // qtmpi.print();
-            //   // printf("dtmpj = \n");
-            //   printf("before iat != jat; iat = %i, jat = %i; stmp = \n", iat, jat);
-            //   stmp.print();
-            //   printf("also, ii + iao = %d, jj + jao = %d, iao = %d, jao = %d\n", ii + iao, jj + jao, iao, jao);
-            // }
             atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
-            /*do k = 1, 3
-                           ! $omp atomic
-                           dpint(k, jj+jao, ii+iao) = dpint(k, jj+jao, ii+iao) &
-                              + dtmpi(k, ij)
-                        end do*/
+
             for (int k = 0; k < 3; ++k)
               atomicAdd(&dpint(ii + iao, jj + jao, k), dtmpi(iao, jao, k));
-            /*do k = 1, 6
-                           ! $omp atomic
-                           qpint(k, jj+jao, ii+iao) = qpint(k, jj+jao, ii+iao) &
-                              + qtmpi(k, ij)
-                        end do*/
+
             for (int k = 0; k < 6; ++k)
               atomicAdd(&qpint(ii + iao, jj + jao, k), qtmpi(iao, jao, k));
-            /*                        ! $omp atomic
-                        hamiltonian(jj+jao, ii+iao) = hamiltonian(jj+jao, ii+iao) &
-                           + stmp(ij) * hij*/
             atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
             
             /* TODO: This is a symmetrification of these matrices. Maybe this should be
             done in the outside this loop? */
             if (iat != jat) 
             {
-              /*overlap(ii+iao, jj+jao) = overlap(ii+iao, jj+jao) + stmp(ij)*/
-              // if (threadIdx.x == 1)
-              // {
-              //   printf("inside iat != jat (%i != %i); stmp = \n", iat, jat);
-              //   stmp.print();
-              //   printf("also, ii + iao = %d, jj + jao = %d, iao = %d, jao = %d\n", ii + iao, jj + jao, iao, jao);
-              // }
               atomicAdd(&overlap(jj + jao, ii + iao), stmp(iao, jao));
-              /*do k = 1, 3
-                              ! $omp atomic
-                              dpint(k, ii+iao, jj+jao) = dpint(k, ii+iao, jj+jao) &
-                                 + dtmpj(k)
-                           end do*/
               for (int k = 0; k < 3; ++k)
                 atomicAdd(&dpint(jj + jao, ii + iao,  k), dtmpj[k]);
-              /*do k = 1, 6
-                              ! $omp atomic
-                              qpint(k, ii+iao, jj+jao) = qpint(k, ii+iao, jj+jao) &
-                                 + qtmpj(k)
-                           end do*/
               for (int k = 0; k < 6; ++k)
                 atomicAdd(&qpint(jj + jao, ii + iao,  k), qtmpj[k]);
-              /*! $omp atomic
-                           hamiltonian(ii+iao, jj+jao) = hamiltonian(ii+iao, jj+jao) &
-                              + stmp(ij) * hij*/
               atomicAdd(&hamiltonian(jj + jao, ii + iao), stmp(iao, jao) * hij);
             }
           }
@@ -1000,8 +603,7 @@ __global__ void get_hamiltonian_intra_atomic(
   tensor2d_t<double> hamiltonian)
 {
   const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
-  constexpr int msao[] = {0, 1, 3, 5, 7, 9, 11, 13};
-
+  constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13};
   device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]); stmp.fill(0.0);
   device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3); dtmpi.fill(0.0);
   device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6); qtmpi.fill(0.0);
@@ -1156,89 +758,14 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       tensor1d_t(bas_sh2at, bas_sh2at_dim1),
       tensor2d_t(cgto, cgto_dim1, cgto_dim2)};
   
-  // DEBUG
-  // printf("at %s:%i\n", __func__, __LINE__);
-  // printf("nao = %i\n", nao);
-  // printf("nelem = %i\n", nelem);
-  // printstruct(bas);
-  // printstruct(alist);
-  // printstruct(mol);
-  // printstruct(h0);
-  
-  // printf("bas.cgto has shape (%i, %i)\n", bas.cgto.dim1, bas.cgto.dim2);
-  // for (int i = 0; i < bas.cgto.dim1; i++)
-  // {
-  //   for(int j = 0; j < bas.cgto.dim2; j++)
-  //   {
-  //     printf("cgto(%d, %d) = \n", i, j);
-  //     printstruct(bas.cgto(i, j));
-  //   }
-  // }
-  
-
-  // const structure_type d_mol{
-  //     mol.nat,
-  //     mol.nid,
-  //     mol.nbd,
-  //     mol.id,
-  //     mol.num.to_device(),
-  //     mol.xyz.to_device(),
-  //     mol.uhf,
-  //     mol.charge,
-  //     mol.lattice.to_device(),
-  //     mol.periodic.to_device(),
-  //     mol.bond.to_device()};
 
   const tensor2d_t<const double> trans_ten(trans, trans_dim1, trans_dim2);
-
-  // const adjacency_list d_alist{
-  //     alist.inl.to_device(),
-  //     alist.nnl.to_device(),
-  //     alist.nlat.to_device(),
-  //     alist.nltr.to_device()};
-
-  // const basis_type d_basis{
-  //     bas_maxl,
-  //     bas_nsh,
-  //     bas_nao,
-  //     bas_intcut,
-  //     bas_min_alpha,
-  //     bas.nsh_id.to_device(),
-  //     bas.nsh_at.to_device(),
-  //     bas.nao_sh.to_device(),
-  //     bas.iao_sh.to_device(),
-  //     bas.ish_at.to_device(),
-  //     bas.ao2at.to_device(),
-  //     bas.ao2sh.to_device(),
-  //     bas.sh2at.to_device(),
-  //     bas.cgto.to_device()};
-
-  // const tb_hamiltonian d_h0{
-  //     h0.selfenergy.to_device(),
-  //     h0.kcn.to_device(),
-  //     h0.kq1.to_device(),
-  //     h0.kq2.to_device(),
-  //     h0.hscale.to_device(),
-  //     h0.shpoly.to_device(),
-  //     h0.rad.to_device(),
-  //     h0.refocc.to_device()};
-
-  // const tensor1d_t<const double> d_selfenergy = tensor1d_t<const double>(selfenergy, nelem).to_device();
-  // tensor2d_t<double> d_overlap = tensor2d_t<double>(overlap, nao, nao).to_device();
-  // tensor3d_t<double> d_dpint = tensor3d_t<double>(dpint, nao, nao, 3).to_device();
-  // tensor3d_t<double> d_qpint = tensor3d_t<double>(qpint, nao, nao, 6).to_device();
-  // tensor2d_t<double> d_hamiltonian = tensor2d_t<double>(hamiltonian, nao, nao).to_device();
   const tensor1d_t<const double> selfenergy_ten(selfenergy, nelem);
   tensor2d_t<double> overlap_ten(overlap, nao, nao);
   tensor3d_t<double> dpint_ten(dpint, nao, nao, 3);
   tensor3d_t<double> qpint_ten(qpint, nao, nao, 6);
   tensor2d_t<double> hamiltonian_ten(hamiltonian, nao, nao);
   
-  /* Zero out the arrays before the kernel starts */
-  // d_overlap.memset(static_cast<double>(0.0));
-  // d_dpint.memset(static_cast<double>(0.0));
-  // d_qpint.memset(static_cast<double>(0.0));
-  // d_hamiltonian.memset(static_cast<double>(0.0));
   
   ////////////////////////////////////////////
   // Launch kernel part I
@@ -1254,7 +781,6 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     must not be performed after launching any kernel that uses the ::malloc() or ::free() 
     device system calls - in such case ::cudaErrorInvalidValue will be returned
     */
-    // CUDA_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1024 * sizeof(double)));
     setCudaMallocHeapSizeOnce(1024 * sizeof(double));
     cudaDeviceSynchronize();
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
