@@ -879,9 +879,11 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     // Quadrupole moment integral matrix (nao, nao, 6)
     double *qpint,
     // Hamiltonian matrix (nao, nao)
-    double *hamiltonian)
+    double *hamiltonian
+    // double * time
+)
 {
-  printf("================= CUDA C/C++ =================\n");
+  // printf("================= CUDA C/C++ =================\n");
 
   const adjacency_list alist{
       tensor1d_t(alist_inl, alist_inl_dim1),
@@ -937,8 +939,8 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   // Launch kernel part I
   ////////////////////////////////////////////
   cudaEvent_t start, stop;
+  float total_time = 0;
   float milliseconds = 0;
-
   {
     /*
     NOTE
@@ -947,7 +949,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     must not be performed after launching any kernel that uses the ::malloc() or ::free() 
     device system calls - in such case ::cudaErrorInvalidValue will be returned
     */
-    setCudaMallocHeapSizeOnce(1024 * sizeof(double));
+    setCudaMallocHeapSizeOnce(64 * sizeof(double));
     cudaDeviceSynchronize();
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
     get_hamiltonian_inter_atomic<<<1, mol.nat>>>(
@@ -967,6 +969,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     cudaEventRecord(stop); cudaEventSynchronize(stop);
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("Kernel part I execution time: %f ms\n", milliseconds);
+    total_time += milliseconds;
     cudaEventDestroy(start); cudaEventDestroy(stop);
   }
   // printf("hamiltonian_ten(pre) = \n");
@@ -995,8 +998,9 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("Kernel part II execution time: %f ms\n", milliseconds);
     cudaEventDestroy(start); cudaEventDestroy(stop);
+    total_time += milliseconds;
   }
-
+  printf("Total kernel time = %f ms\n", total_time);
   ////////////////////////////
   // copy data back to host
   ////////////////////////////
@@ -1004,7 +1008,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   memcpy(dpint, dpint_ten.data, dpint_ten.size() * sizeof(double));
   memcpy(qpint, qpint_ten.data, qpint_ten.size() * sizeof(double));
   memcpy(hamiltonian, hamiltonian_ten.data, hamiltonian_ten.size() * sizeof(double));
-  
+  // time[0] = total_time;
   // printf("overlap_ten = \n");
   // overlap_ten.print();
   // printf("dpint_ten = \n");

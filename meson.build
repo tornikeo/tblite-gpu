@@ -11,8 +11,7 @@ project(
 )
 
 build_args_common = [
-  '-ccbin', 
-  'g++',
+  '-ccbin=cc',
   '-c',
   # The 64-bit floating-point version of atomicAdd() is only supported by devices of compute capability
   # 6.x and higher. We put our current compute cap for an  RTX 4060
