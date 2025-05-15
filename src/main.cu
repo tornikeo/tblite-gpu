@@ -25,16 +25,25 @@ __device__ inline void transform0(const int li, const int lj, const device_tenso
   else if (li <= 1 && lj == 2)
   {
       // sphr = matmul(dtrafo, cart)
-      for(int i = 0; i < cart.dim1; ++i)
-      {
-        sphr(i, 0) = cart(i, 2) - 0.5 * (cart(i, 0) + cart(i, 1));
-        sphr(i, 1) = s3 * cart(i, 4);
-        sphr(i, 2) = s3 * cart(i, 5);
-        sphr(i, 3) = s3_4 * (cart(i, 0) - cart(i, 1));
-        sphr(i, 4) = s3 * cart(i, 4);
-      }
+      // sphr(1, :) = cart(3, :) - 0.5_wp * (cart(1, :) + cart(2, :))
+      for(int i = 1; i <= cart.dim1; ++i)
+        sphr(1, i, 'f') = cart(3, i, 'f') - 0.5 * (cart(1, i, 'f') + cart(2, i, 'f'));
+      // sphr(2, :) = s3 * cart(5, :)
+      for(int i = 1; i <= cart.dim1; ++i)
+        sphr(2, i, 'f') = s3 * cart(5, i, 'f');
+      // sphr(3, :) = s3 * cart(6, :)
+      for(int i = 1; i <= cart.dim1; ++i)
+        sphr(3, i, 'f') = s3 * cart(6, i, 'f');
+      // sphr(4, :) = s3_4 * (cart(1, :) - cart(2, :))
+      for(int i = 1; i <= cart.dim1; ++i)
+        sphr(4, i, 'f') = s3_4 * (cart(1, i, 'f') - cart(2, i, 'f'));
+      // sphr(5, :) = s3 * cart(4, :)
+      for(int i = 1; i <= cart.dim1; ++i)
+        sphr(5, i, 'f') = s3 * cart(4, i, 'f');
       return;
-  } else if(li == 2 && lj <= 1) {
+  } 
+  else if(li == 2 && lj <= 1) 
+  {
     for(int i = 0; i < cart.dim2; ++i)
     {
       sphr(0, i) = cart(2, i) - 0.5 * (cart(0, i) + cart(1, i));
@@ -43,7 +52,9 @@ __device__ inline void transform0(const int li, const int lj, const device_tenso
       sphr(3, i) = s3_4 * (cart(0, i) - cart(1, i));
       sphr(4, i) = s3 * cart(3, i);
     }
-  } else if (li == 2 && lj == 2) {
+  } 
+  else if (li == 2 && lj == 2)
+  {
     // printf("⚠️ transforms at li=2 lj=2 are not yet implemented\n");
     /* REMEMBER 
       i,j -> i-1, j-1, due to Fortran indexing
@@ -98,7 +109,8 @@ __device__ inline void transform0(const int li, const int lj, const device_tenso
     // sphr(4, 5) = 1.5_wp * (cart(1, 4) - cart(2, 4))
     sphr(4,5,'f') = 1.5 * (cart(1,4,'f') - cart(2,4,'f'));
   } 
-  else {
+  else 
+  {
     printf("[Fatal] transform0 not supported for li=%d lj=%d\n", li, lj);
     assert(false);
     return;
@@ -110,7 +122,8 @@ __device__ inline void transform1(const int li, const int lj, const device_tenso
 {
   constexpr T s3 = 1.7320508075688772; // sqrt(3)
   constexpr T s3_4 = 0.6123724356957945; // sqrt(3)/2
-  if(li <= 1 && lj <= 1){
+  if(li <= 1 && lj <= 1)
+  {
     for(int i = 0; i < cart.dim1; ++i)
       for(int j = 0; j < cart.dim2; ++j)
         for(int k = 0; k < cart.dim3; ++k)
@@ -165,10 +178,10 @@ __device__ inline void transform1(const int li, const int lj, const device_tenso
         sphr(4, i, k) = s3 * cart(3, i, k);
       }
     }
-  } else if (li == 2 && lj == 2)
+  } 
+  else if (li == 2 && lj == 2)
   {
     // printf("⚠️ transforms at li=2 lj=2 are not yet implemented\n");
-
     for(int k = 1; k <= cart.dim3; k++)
     {
       // sphr(1, 1) = cart(3, 3) &
@@ -198,6 +211,8 @@ __device__ inline void transform1(const int li, const int lj, const device_tenso
       sphr(k, 1, 3, 'f') = s3 * cart(k, 3, 6, 'f') - s3_4 * (cart(k, 1, 6, 'f') + cart(k, 2, 6, 'f'));
       // sphr([2, 3, 5], 3) = 3 * cart([5, 6, 4], 6)
       sphr(k, 2, 3, 'f') = 3 * cart(k, 5, 6, 'f');
+      sphr(k, 3, 3, 'f') = 3 * cart(k, 6, 6, 'f');
+      sphr(k, 5, 3, 'f') = 3 * cart(k, 4, 6, 'f');
       // sphr(4, 3) = 1.5_wp * (cart(1, 6) - cart(2, 6))
       sphr(k, 4, 3, 'f') = 1.5 * (cart(k, 1, 6, 'f') - cart(k, 2, 6, 'f'));
       // sphr(1, 4) = s3_4 * (cart(3, 1) - cart(3, 2)) &
@@ -512,8 +527,11 @@ __device__ void multipole_cgto(
     {2,2,2,},
   };
 
-  double eab = 0.0, oab = 0.0, est = 0.0, s1d[MAXL2] = {0.0}, rpi[3] = {0.0}, 
-    rpj[3] = {0.0}, cc = 0.0, val = 0.0, dip[3] = {0.0}, quad[6] = {0.0}, pre = 0.0, tr = 0.0;
+  double s1d[MAXL2] = {0.0};
+  double rpi[3] = {0.0};
+  double rpj[3] = {0.0}; 
+  double dip[3] = {0.0}; 
+  double quad[6] = {0.0};
   constexpr double sqrtpi3 = 5.56832799683; // sqrt(pi)**3
 
   device_tensor2d_t<double> s3d(mlao[cgtoi.ang], mlao[cgtoj.ang]); s3d.fill(0.0);
@@ -524,13 +542,13 @@ __device__ void multipole_cgto(
   {
     for (int jp = 0; jp < cgtoj.nprim; ++jp)
     {
-      eab = cgtoi.alpha[ip] + cgtoj.alpha[jp];
-      oab = 1.0 / eab;
-      est = cgtoi.alpha[ip] * cgtoj.alpha[jp] * r2 * oab;
+      auto eab = cgtoi.alpha[ip] + cgtoj.alpha[jp];
+      auto oab = 1.0 / eab;
+      auto est = cgtoi.alpha[ip] * cgtoj.alpha[jp] * r2 * oab;
 
       if (est > intcut) continue;
 
-      pre = exp(-est) * sqrtpi3 * pow(sqrt(oab), 3);
+      auto pre = exp(-est) * sqrtpi3 * pow(sqrt(oab), 3);
       for (int k = 0; k < 3; ++k)
       {
         rpi[k] = -vec[k] * cgtoj.alpha[jp] * oab;
@@ -544,32 +562,32 @@ __device__ void multipole_cgto(
       {
         for (int mlj = 0; mlj < mlao[cgtoj.ang]; ++mlj)
         {
+          double val = 0.0;
           multipole_3d(
             rpi, rpj,
             cgtoi.alpha[ip], cgtoj.alpha[jp], 
             lx[mli + lmap[cgtoi.ang]], lx[mlj + lmap[cgtoj.ang]],
             s1d, val, dip, quad);
+
           s3d(mli, mlj) += cc * val;
-          
-          for (size_t k = 0; k < 3; ++k)
+          for (int k = 0; k < 3; ++k)
             d3d(mli,mlj,k) += cc * dip[k];
-          for (size_t k = 0; k < 6; ++k)
+          for (int k = 0; k < 6; ++k)
             q3d(mli,mlj,k) += cc * quad[k];
         }
       }
     }
   }
-  
+
   transform0(cgtoi.ang, cgtoj.ang, /*cart=*/s3d, /*sphr=*/overlap);
   transform1(cgtoi.ang, cgtoj.ang, d3d, dpint);
   transform1(cgtoi.ang, cgtoj.ang, q3d, qpint);
-
-
+    
   for (int mli = 0; mli < msao[cgtoi.ang]; ++mli)
   {
     for (int mlj = 0; mlj < msao[cgtoj.ang]; ++mlj)
     {
-      tr = 0.5 * (qpint(mli, mlj, 0) + qpint(mli, mlj, 2) + qpint(mli, mlj, 5));
+      double tr = 0.5 * (qpint(mli, mlj, 0) + qpint(mli, mlj, 2) + qpint(mli, mlj, 5));
       qpint(mli, mlj, 0) = 1.5 * qpint(mli, mlj, 0) - tr;
       qpint(mli, mlj, 1) = 1.5 * qpint(mli, mlj, 1);
       qpint(mli, mlj, 2) = 1.5 * qpint(mli, mlj, 2) - tr;
@@ -665,7 +683,9 @@ __global__ void get_hamiltonian_inter_atomic(
 {
   const int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
   constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13};
-  double rr = 0.0, r2 = 0.0, vec[3] = {0.0}, cutoff2 = 0.0, hij = 0.0, shpoly = 0.0, dtmpj[3] = {0.0}, qtmpj[6] = {0.0};
+  double vec[3] = {0.0};
+  double dtmpj[3] = {0.0};
+  double qtmpj[6] = {0.0};
 
   device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]); stmp.fill(0.0);
   device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3); dtmpi.fill(0.0);
@@ -686,8 +706,8 @@ __global__ void get_hamiltonian_inter_atomic(
     for (int k = 0; k < 3; ++k)
       vec[k] = mol.xyz(iat, k) - mol.xyz(jat, k) - trans(itr, k);
 
-    r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
-    rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
+    double r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
+    double rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
     for (int ish = 0; ish < bas.nsh_id[izp]; ++ish)
     {
       int ii = bas.iao_sh[is + ish];
@@ -697,10 +717,9 @@ __global__ void get_hamiltonian_inter_atomic(
         const auto &cgtoj = bas.cgto(jzp, jsh); 
         const auto &cgtoi = bas.cgto(izp, ish);
         multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, /*overlap=*/stmp, dtmpi, qtmpi);
-
-        shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
+        double shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
                  (1.0 + h0.shpoly(jzp, jsh) * rr);
-        hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
+        double hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
               h0.hscale(izp, jzp, ish, jsh) * shpoly;
 
         const int nao = msao[bas.cgto(jzp, jsh).ang];
@@ -950,8 +969,8 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     printf("Kernel part I execution time: %f ms\n", milliseconds);
     cudaEventDestroy(start); cudaEventDestroy(stop);
   }
-  printf("hamiltonian_ten(pre) = \n");
-  hamiltonian_ten.print();
+  // printf("hamiltonian_ten(pre) = \n");
+  // hamiltonian_ten.print();
   ////////////////////////////////////////////
   // Launch kernel part II
   ////////////////////////////////////////////
