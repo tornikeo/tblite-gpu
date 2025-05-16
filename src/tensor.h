@@ -58,6 +58,20 @@ public:
     CUDA_CHECK(cudaMemset(this->data, value, dim1 * sizeof(T)));
   }
 
+  __host__ __device__ inline typename std::remove_const<T>::type max() const
+  {
+    // make sure this works when T is const
+    typename std::remove_const<T>::type max_value = data[0];
+    for (int i = 1; i < dim1; ++i)
+    {
+      if (data[i] > max_value)
+      {
+        max_value = data[i];
+      }
+    }
+    return max_value;
+  }
+
   __host__ __device__ inline void print() const
   {
     printf("(%i)\n", dim1);

@@ -130,18 +130,19 @@ inline void printr(int n, int m, int o, int p, const T *arr)
 }
 
 
-__host__ __device__ inline void * xmalloc(size_t size)
+__host__ __device__ inline void * xmalloc(int size)
 {
   void *ptr = malloc(size);
   assert(ptr != nullptr && "Memory allocation failed");
   return ptr;
 }
 
-__host__ __device__ inline void * xcalloc(size_t size)
+__host__ __device__ inline void * xcalloc(int size)
 {
-  void *ptr = calloc(1, size);
-  assert(ptr != nullptr && "Memory allocation failed");
+  void *ptr = xmalloc(size);
+  memset(ptr, 0, size); 
   return ptr;
 }
+
 
 #endif

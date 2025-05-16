@@ -10,17 +10,29 @@ class device_tensor2d_t
 {
 public:
   int dim1, dim2;
-  T *data;
+  bool own;
+  T * data;
   __device__ device_tensor2d_t() : dim1(0), dim2(0), data(nullptr) {}
   __device__ device_tensor2d_t(int dim1, int dim2)
   {
     this->dim1 = dim1;
     this->dim2 = dim2;
-    this->data = (T *)xmalloc(dim1 * dim2 * sizeof(T));
+    this->data = (T *)xcalloc(dim1 * dim2 * sizeof(T));
+    this->own = true;
   }
+
+  __device__ device_tensor2d_t(int dim1, int dim2, T *data)
+  {
+    this->dim1 = dim1;
+    this->dim2 = dim2;
+    this->data = data;
+    this->own = false;
+  }
+
   __device__ ~device_tensor2d_t()
   {
-    free(data);
+    if (own) 
+      free(data);
   }
 
   __device__ device_tensor2d_t(const device_tensor2d_t &other)
@@ -111,18 +123,30 @@ class device_tensor3d_t
 {
 public:
   int dim1, dim2, dim3;
-  T *data;
+  bool own;
+  T * data;
   __device__ device_tensor3d_t() : dim1(0), dim2(0), dim3(0), data(nullptr) {}
   __device__ device_tensor3d_t(int dim1, int dim2, int dim3)
   {
     this->dim1 = dim1;
     this->dim2 = dim2;
     this->dim3 = dim3;
-    this->data = (T *)xmalloc(dim1 * dim2 * dim3 * sizeof(T));
+    this->data = (T *)xcalloc(dim1 * dim2 * dim3 * sizeof(T));
+    this->own = true;
   }
+  __device__ device_tensor3d_t(int dim1, int dim2, int dim3, T *data)
+  {
+    this->dim1 = dim1;
+    this->dim2 = dim2;
+    this->dim3 = dim3;
+    this->data = data;
+    this->own = false;
+  }
+
   __device__ ~device_tensor3d_t()
   {
-    free(data);
+    if(own)
+      free(data);
   }
 
   /* Proxy for transposed indexing */
