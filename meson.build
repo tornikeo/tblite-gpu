@@ -17,6 +17,7 @@ build_args_common = [
   # 6.x and higher. We put our current compute cap for an  RTX 4060
   '-gencode=arch=compute_89,code=sm_89',
   '-m64',
+  # '-rdc=true',
 ]    
 
 
