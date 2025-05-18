@@ -9,25 +9,18 @@ template <typename T>
 class device_tensor2d_t
 {
 public:
-  int dim1, dim2;
+  const int dim1, dim2;
   bool own;
   T * data;
   __device__ device_tensor2d_t() : dim1(0), dim2(0), data(nullptr) {}
-  __device__ device_tensor2d_t(int dim1, int dim2)
+  __device__ device_tensor2d_t(int dim1, int dim2) : dim1(dim1), dim2(dim2) 
   {
-    this->dim1 = dim1;
-    this->dim2 = dim2;
     this->data = (T *)xcalloc(dim1 * dim2 * sizeof(T));
     this->own = true;
   }
 
   __device__ device_tensor2d_t(int dim1, int dim2, T *data)
-  {
-    this->dim1 = dim1;
-    this->dim2 = dim2;
-    this->data = data;
-    this->own = false;
-  }
+  : dim1(dim1), dim2(dim2), data(data), own(false) {}
 
   __device__ ~device_tensor2d_t()
   {
@@ -131,27 +124,17 @@ template <typename T>
 class device_tensor3d_t
 {
 public:
-  int dim1, dim2, dim3;
-  bool own;
+  const int dim1, dim2, dim3;
+  const bool own;
   T * data;
   __device__ device_tensor3d_t() : dim1(0), dim2(0), dim3(0), data(nullptr) {}
-  __device__ device_tensor3d_t(int dim1, int dim2, int dim3)
+  __device__ device_tensor3d_t(int dim1, int dim2, int dim3) : dim1(dim1), dim2(dim2), dim3(dim3), own(true)
   {
-    this->dim1 = dim1;
-    this->dim2 = dim2;
-    this->dim3 = dim3;
+    // Allocate memory for the tensor
     this->data = (T *)xcalloc(dim1 * dim2 * dim3 * sizeof(T));
-    this->own = true;
   }
-  __device__ device_tensor3d_t(int dim1, int dim2, int dim3, T *data)
-  {
-    this->dim1 = dim1;
-    this->dim2 = dim2;
-    this->dim3 = dim3;
-    this->data = data;
-    this->own = false;
-  }
-
+  __device__ device_tensor3d_t(int dim1, int dim2, int dim3, T *data) : dim1(dim1), dim2(dim2), dim3(dim3), data(data), own(false) {}
+  
   __device__ ~device_tensor3d_t()
   {
     if(own)

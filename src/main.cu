@@ -621,86 +621,94 @@ __device__ void multipole_cgto_kernel(
     jcoeff[i] = cgtoj.coeff[i];
   __syncthreads();
 
-  const int total = cgtoi.nprim * cgtoj.nprim;
-  for(int i = threadIdx.x; i < total; i+=blockDim.x)
-  // for (int ip = 0; ip < cgtoi.nprim; ++ip)
   {
-    // for (int jp = 0; jp < cgtoj.nprim; ++jp)
+    const int total = cgtoi.nprim * cgtoj.nprim;
+    for(int i = threadIdx.x; i < total; i+=blockDim.x)
+    // for (int ip = 0; ip < cgtoi.nprim; ++ip)
     {
-      const int ip = i / cgtoj.nprim;
-      const int jp = i % cgtoj.nprim;
-
-      double s1d[MAXL2] = {0.0};
-      double rpi[3] = {0.0};
-      double rpj[3] = {0.0}; 
-      double dip[3] = {0.0}; 
-      double quad[6] = {0.0};
-      auto eab = ialpha[ip] + jalpha[jp];
-      auto oab = 1.0 / eab;
-      auto est = ialpha[ip] * jalpha[jp] * r2 * oab;
-
-      if (est > intcut) continue;
-
-      auto pre = exp(-est) * sqrtpi3 * pow(sqrt(oab), 3);
-      for (int k = 0; k < 3; ++k)
+      // for (int jp = 0; jp < cgtoj.nprim; ++jp)
       {
-        rpi[k] = -vec[k] * jalpha[jp] * oab;
-        rpj[k] = +vec[k] * ialpha[ip] * oab;
-      }
-      for (int l = 0; l <= cgtoi.ang + cgtoj.ang + 2; ++l)
-        s1d[l] = overlap_1d(l, eab);
-      double cc = icoeff[ip] * jcoeff[jp] * pre;
-      
-      for (int mli = 0; mli < mlao[cgtoi.ang]; ++mli)
-      {
-        for (int mlj = 0; mlj < mlao[cgtoj.ang]; ++mlj)
+        const int ip = i / cgtoj.nprim;
+        const int jp = i % cgtoj.nprim;
+
+        double s1d[MAXL2] = {0.0};
+        double rpi[3] = {0.0};
+        double rpj[3] = {0.0}; 
+        double dip[3] = {0.0}; 
+        double quad[6] = {0.0};
+        auto eab = ialpha[ip] + jalpha[jp];
+        auto oab = 1.0 / eab;
+        auto est = ialpha[ip] * jalpha[jp] * r2 * oab;
+
+        if (est > intcut) continue;
+
+        auto pre = exp(-est) * sqrtpi3 * pow(sqrt(oab), 3);
+        for (int k = 0; k < 3; ++k)
         {
-          double val = 0.0;
-          multipole_3d(
-            rpi, rpj,
-            ialpha[ip], jalpha[jp], 
-            lx[mli + lmap[cgtoi.ang]], lx[mlj + lmap[cgtoj.ang]],
-            s1d, val, dip, quad);
-          
-          // s3d(mli, mlj) += cc * val;
-          atomicAdd(&s3d(mli, mlj), cc * val);
-          for (int k = 0; k < 3; ++k)
-          // d3d(mli,mlj,k) += cc * dip[k];
-            atomicAdd(&d3d(mli, mlj, k), cc * dip[k]);
-          for (int k = 0; k < 6; ++k)
-            // q3d(mli,mlj,k) += cc * quad[k];
-            atomicAdd(&q3d(mli, mlj, k), cc * quad[k]);
+          rpi[k] = -vec[k] * jalpha[jp] * oab;
+          rpj[k] = +vec[k] * ialpha[ip] * oab;
         }
+        for (int l = 0; l <= cgtoi.ang + cgtoj.ang + 2; ++l)
+          s1d[l] = overlap_1d(l, eab);
+        double cc = icoeff[ip] * jcoeff[jp] * pre;
+        
+        for (int mli = 0; mli < mlao[cgtoi.ang]; ++mli)
+        {
+          for (int mlj = 0; mlj < mlao[cgtoj.ang]; ++mlj)
+          {
+            double val = 0.0;
+            multipole_3d(
+              rpi, rpj,
+              ialpha[ip], jalpha[jp], 
+              lx[mli + lmap[cgtoi.ang]], lx[mlj + lmap[cgtoj.ang]],
+              s1d, val, dip, quad);
+            
+            // s3d(mli, mlj) += cc * val;
+            atomicAdd(&s3d(mli, mlj), cc * val);
+            for (int k = 0; k < 3; ++k)
+            // d3d(mli,mlj,k) += cc * dip[k];
+              atomicAdd(&d3d(mli, mlj, k), cc * dip[k]);
+            for (int k = 0; k < 6; ++k)
+              // q3d(mli,mlj,k) += cc * quad[k];
+              atomicAdd(&q3d(mli, mlj, k), cc * quad[k]);
+          }
+        }
+      }
+    }
+    __syncthreads();
+  }
+  
+  if(threadIdx.x == 0){
+    transform0(cgtoi.ang, cgtoj.ang, s3d, overlap);
+    transform1(cgtoi.ang, cgtoj.ang, q3d, qpint);
+  }
+  if(threadIdx.x == warpSize)
+  {
+    transform1(cgtoi.ang, cgtoj.ang, d3d, dpint);
+  }
+  __syncthreads();
+
+  {
+    const int total = msao[cgtoi.ang] * msao[cgtoj.ang];
+    // for (int mli = 0; mli < msao[cgtoi.ang]; ++mli)
+    for(int i = threadIdx.x; i < total; i+=blockDim.x)
+    {
+      // for (int mlj = 0; mlj < msao[cgtoj.ang]; ++mlj)
+      {
+        const int mli = i / msao[cgtoj.ang];
+        const int mlj = i % msao[cgtoj.ang];
+
+        double tr = 0.5 * (qpint(mli, mlj, 0) + qpint(mli, mlj, 2) + qpint(mli, mlj, 5));
+        qpint(mli, mlj, 0) = 1.5 * qpint(mli, mlj, 0) - tr;
+        qpint(mli, mlj, 1) = 1.5 * qpint(mli, mlj, 1);
+        qpint(mli, mlj, 2) = 1.5 * qpint(mli, mlj, 2) - tr;
+        qpint(mli, mlj, 3) = 1.5 * qpint(mli, mlj, 3);
+        qpint(mli, mlj, 4) = 1.5 * qpint(mli, mlj, 4);
+        qpint(mli, mlj, 5) = 1.5 * qpint(mli, mlj, 5) - tr;
       }
     }
   }
   __syncthreads();
-  if(threadIdx.x > 0 || threadIdx.y > 0) return;
-
-
-  transform0(cgtoi.ang, cgtoj.ang, s3d, overlap);
-
-  // if(overlap.dim1 > 3 && overlap.dim2 > 0 && abs(overlap(3, 0) - (-0.0130592388)) <= 1e-7)
-  // {
-  //   printf("multipole overlap(3, 0) = %.9g, cgtoi.ang = %d, cgtoj.ang = %d\n", overlap(3, 0), cgtoi.ang, cgtoj.ang);
-  // }
-
-  transform1(cgtoi.ang, cgtoj.ang, d3d, dpint);
-  transform1(cgtoi.ang, cgtoj.ang, q3d, qpint);
-    
-  for (int mli = 0; mli < msao[cgtoi.ang]; ++mli)
-  {
-    for (int mlj = 0; mlj < msao[cgtoj.ang]; ++mlj)
-    {
-      double tr = 0.5 * (qpint(mli, mlj, 0) + qpint(mli, mlj, 2) + qpint(mli, mlj, 5));
-      qpint(mli, mlj, 0) = 1.5 * qpint(mli, mlj, 0) - tr;
-      qpint(mli, mlj, 1) = 1.5 * qpint(mli, mlj, 1);
-      qpint(mli, mlj, 2) = 1.5 * qpint(mli, mlj, 2) - tr;
-      qpint(mli, mlj, 3) = 1.5 * qpint(mli, mlj, 3);
-      qpint(mli, mlj, 4) = 1.5 * qpint(mli, mlj, 4);
-      qpint(mli, mlj, 5) = 1.5 * qpint(mli, mlj, 5) - tr;
-    }
-  }
 }
 
 __device__ void multipole_cgto(
@@ -808,11 +816,11 @@ __device__ inline void shift_operator(
 
 template <size_t maxl>
 __global__ void get_hamiltonian_between_atoms_kernel(
-    const __grid_constant__ structure_type mol,
+    const __grid_constant__ __restrict__ structure_type mol,
     const __grid_constant__ tensor2d_t<const double> trans,
-    const __grid_constant__ adjacency_list alist,
-    const __grid_constant__ basis_type bas,
-    const __grid_constant__ tb_hamiltonian h0,
+    const __grid_constant__ __restrict__ adjacency_list alist,
+    const __grid_constant__ __restrict__ basis_type bas,
+    const __grid_constant__ __restrict__ tb_hamiltonian h0,
     const __grid_constant__ tensor1d_t<const double> selfenergy,
     tensor2d_t<double> overlap,
     tensor3d_t<double> dpint,
@@ -838,24 +846,24 @@ __global__ void get_hamiltonian_between_atoms_kernel(
       for (int total = blockIdx.z; total < total_iters; total += gridDim.z)
       // for (int ish = blockIdx.z; ish < bas.nsh_id[izp]; ish += gridDim.z)
       {
-        // int ii = bas.iao_sh[is + ish];
         // for (int jsh = 0; jsh < bas.nsh_id[jzp]; ++jsh)
         {
           const int ish = total / bas.nsh_id[jzp];
           const int jsh = total % bas.nsh_id[jzp];
+
           const int ii = bas.iao_sh[is + ish];
           const int jj = bas.iao_sh[js + jsh];
-          // int jj = bas.iao_sh[js + jsh];
           
-          __shared__ double vec[3]; //= {0.0};
-          __shared__ double dtmpj[3]; //= {0.0};
-          __shared__ double qtmpj[6]; //= {0.0};
+          __shared__ double vec[3];   // = {0.0};
+          __shared__ double dtmpj[3]; // = {0.0};
+          __shared__ double qtmpj[6]; // = {0.0};
           double r2 = 0;
           double rr = 0;
 
           for (int k = threadIdx.x; k < 3; k+=blockDim.x)
             vec[k] = mol.xyz(iat, k) - mol.xyz(jat, k) - trans(itr, k);
           __syncthreads();
+
           r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
           rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
           
@@ -880,19 +888,24 @@ __global__ void get_hamiltonian_between_atoms_kernel(
 
           multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
 
-          if(threadIdx.x > 0 || threadIdx.y > 0) return;
-
-          double shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
+          const double shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
                   (1.0 + h0.shpoly(jzp, jsh) * rr);
-          double hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
+          const double hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
                 h0.hscale(izp, jzp, ish, jsh) * shpoly;
 
           const int njao = msao[bas.cgto(jzp, jsh).ang];
           const int niao = msao[bas.cgto(izp, ish).ang];
-          for(int iao = 0; iao < niao; ++iao)
+
+          // if(threadIdx.x > 0 || threadIdx.y > 0) return;
+          
+          const int total = niao * njao;
+          // for(int iao = 0; iao < niao; ++iao)
+          for(int i = threadIdx.x; i < total; i+=blockDim.x)
           {
-            for(int jao = 0; jao < njao; ++jao)
+            // for(int jao = 0; jao < njao; ++jao)
             {
+              const int iao = i / njao;
+              const int jao = i % njao;
               shift_operator(iao, jao, vec, stmp, dtmpi, qtmpi, dtmpj, qtmpj); 
 
               atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
