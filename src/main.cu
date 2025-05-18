@@ -778,12 +778,12 @@ __device__ inline void shift_operator(
 
 template <size_t maxl>
 __global__ void get_hamiltonian_between_atoms_kernel(
-    const structure_type mol,
-    const tensor2d_t<const double> trans,
-    const adjacency_list alist,
-    const basis_type bas,
-    const tb_hamiltonian h0,
-    const tensor1d_t<const double> selfenergy,
+    const __grid_constant__ structure_type mol,
+    const __grid_constant__ tensor2d_t<const double> trans,
+    const __grid_constant__ adjacency_list alist,
+    const __grid_constant__ basis_type bas,
+    const __grid_constant__ tb_hamiltonian h0,
+    const __grid_constant__ tensor1d_t<const double> selfenergy,
     tensor2d_t<double> overlap,
     tensor3d_t<double> dpint,
     tensor3d_t<double> qpint,
@@ -792,92 +792,91 @@ __global__ void get_hamiltonian_between_atoms_kernel(
   constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13};
   constexpr int N = msao[maxl];
 
-  int iat = blockIdx.x;
-  if (iat >= mol.nat)
-    return;
-  int izp = mol.id[iat];
-  int is = bas.ish_at[iat];
-  int inl = alist.inl[iat];
-  for (int img = blockIdx.y; img < alist.nnl[iat]; img+=gridDim.y)
+  for(int iat = blockIdx.x; iat < mol.nat; iat += gridDim.x)
   {
-    int jat = alist.nlat[img + inl];
-    int itr = alist.nltr[img + inl];
-    int jzp = mol.id[jat];
-    int js = bas.ish_at[jat];
-
-    for (int ish = 0; ish < bas.nsh_id[izp]; ++ish)
+    int izp = mol.id[iat];
+    int is = bas.ish_at[iat];
+    int inl = alist.inl[iat];
+    for (int img = blockIdx.y; img < alist.nnl[iat]; img+=gridDim.y)
     {
-      int ii = bas.iao_sh[is + ish];
-      for (int jsh = 0; jsh < bas.nsh_id[jzp]; ++jsh)
+      int jat = alist.nlat[img + inl];
+      int itr = alist.nltr[img + inl];
+      int jzp = mol.id[jat];
+      int js = bas.ish_at[jat];
+      for (int ish = blockIdx.z; ish < bas.nsh_id[izp]; ish += gridDim.z)
       {
-        int jj = bas.iao_sh[js + jsh];
-        
-        double vec[3] = {0.0};
-        double dtmpj[3] = {0.0};
-        double qtmpj[6] = {0.0};
-        for (int k = 0; k < 3; ++k)
-          vec[k] = mol.xyz(iat, k) - mol.xyz(jat, k) - trans(itr, k);
-        double r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
-        double rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
-
-        double stmp_raw[N * N] = {0.0};
-        double dtmpj_raw[N * N * 3] = {0.0};
-        double qtmpj_raw[N * N * 6] = {0.0};
-
-        device_tensor2d_t<double> stmp (msao[bas.maxl], msao[bas.maxl], &stmp_raw[0]); 
-        device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3, &dtmpj_raw[0]); 
-        device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6, &qtmpj_raw[0]); 
-      
-        const auto &cgtoj = bas.cgto(jzp, jsh); 
-        const auto &cgtoi = bas.cgto(izp, ish);
-        multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
-
-        // if(stmp.dim1 > 3 && stmp.dim2 > 0 && abs(stmp(3, 0) - (-0.0130592388)) <= 1e-7)
-        // {
-        //   if(ii == 13 && jj == 0)
-        //   {
-        //     printf("KERNEL: Condition met: stmp(3, 0) = %g\n", stmp(3, 0));
-        //   }
-        // }
-        double shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
-                 (1.0 + h0.shpoly(jzp, jsh) * rr);
-        double hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
-              h0.hscale(izp, jzp, ish, jsh) * shpoly;
-
-        const int njao = msao[bas.cgto(jzp, jsh).ang];
-        const int niao = msao[bas.cgto(izp, ish).ang];
-        for(int iao = 0; iao < niao; ++iao)
+        int ii = bas.iao_sh[is + ish];
+        for (int jsh = 0; jsh < bas.nsh_id[jzp]; ++jsh)
         {
-          for(int jao = 0; jao < njao; ++jao)
+          int jj = bas.iao_sh[js + jsh];
+          
+          double vec[3] = {0.0};
+          double dtmpj[3] = {0.0};
+          double qtmpj[6] = {0.0};
+          for (int k = 0; k < 3; ++k)
+            vec[k] = mol.xyz(iat, k) - mol.xyz(jat, k) - trans(itr, k);
+          double r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
+          double rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
+
+          double stmp_raw[N * N] = {0.0};
+          double dtmpj_raw[N * N * 3] = {0.0};
+          double qtmpj_raw[N * N * 6] = {0.0};
+
+          device_tensor2d_t<double> stmp (msao[bas.maxl], msao[bas.maxl], &stmp_raw[0]); 
+          device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3, &dtmpj_raw[0]); 
+          device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6, &qtmpj_raw[0]); 
+        
+          const auto &cgtoj = bas.cgto(jzp, jsh); 
+          const auto &cgtoi = bas.cgto(izp, ish);
+          multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
+
+          // if(stmp.dim1 > 3 && stmp.dim2 > 0 && abs(stmp(3, 0) - (-0.0130592388)) <= 1e-7)
+          // {
+          //   if(ii == 13 && jj == 0)
+          //   {
+          //     printf("KERNEL: Condition met: stmp(3, 0) = %g\n", stmp(3, 0));
+          //   }
+          // }
+          double shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
+                  (1.0 + h0.shpoly(jzp, jsh) * rr);
+          double hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
+                h0.hscale(izp, jzp, ish, jsh) * shpoly;
+
+          const int njao = msao[bas.cgto(jzp, jsh).ang];
+          const int niao = msao[bas.cgto(izp, ish).ang];
+          for(int iao = 0; iao < niao; ++iao)
           {
-            shift_operator(iao, jao, vec, stmp, dtmpi, qtmpi, dtmpj, qtmpj); 
-
-            atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
-
-            for (int k = 0; k < 3; ++k)
-              atomicAdd(&dpint(ii + iao, jj + jao, k), dtmpi(iao, jao, k));
-
-            for (int k = 0; k < 6; ++k)
-              atomicAdd(&qpint(ii + iao, jj + jao, k), qtmpi(iao, jao, k));
-
-            // if(ii + iao == 16 && jj + jao == 0) {
-            //   printf("KERNEL: %d + %d && %d + %d\n", ii, iao, jj, jao);
-            //   printf("KERNEL: hamiltonian(%d, %d) = %f\n", ii + iao, jj + jao, hamiltonian(ii + iao, jj + jao));
-            //   printf("KERNEL: stmp(%d, %d) * hij = %.9g * %E = %E\n", iao, jao, stmp(iao, jao), hij, stmp(iao, jao) * hij);
-            // }
-            atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
-
-            
-            /* TODO: This is a symmetrification of these matrices. Maybe this should be
-            done in the outside this loop? */
-            if (iat != jat) 
+            for(int jao = 0; jao < njao; ++jao)
             {
-              atomicAdd(&overlap(jj + jao, ii + iao), stmp(iao, jao));
+              shift_operator(iao, jao, vec, stmp, dtmpi, qtmpi, dtmpj, qtmpj); 
+
+              atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
+
               for (int k = 0; k < 3; ++k)
-                atomicAdd(&dpint(jj + jao, ii + iao,  k), dtmpj[k]);
+                atomicAdd(&dpint(ii + iao, jj + jao, k), dtmpi(iao, jao, k));
+
               for (int k = 0; k < 6; ++k)
-                atomicAdd(&qpint(jj + jao, ii + iao,  k), qtmpj[k]);
-              atomicAdd(&hamiltonian(jj + jao, ii + iao), stmp(iao, jao) * hij);
+                atomicAdd(&qpint(ii + iao, jj + jao, k), qtmpi(iao, jao, k));
+
+              // if(ii + iao == 16 && jj + jao == 0) {
+              //   printf("KERNEL: %d + %d && %d + %d\n", ii, iao, jj, jao);
+              //   printf("KERNEL: hamiltonian(%d, %d) = %f\n", ii + iao, jj + jao, hamiltonian(ii + iao, jj + jao));
+              //   printf("KERNEL: stmp(%d, %d) * hij = %.9g * %E = %E\n", iao, jao, stmp(iao, jao), hij, stmp(iao, jao) * hij);
+              // }
+              atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
+
+              
+              /* TODO: This is a symmetrification of these matrices. Maybe this should be
+              done in the outside this loop? */
+              if (iat != jat) 
+              {
+                atomicAdd(&overlap(jj + jao, ii + iao), stmp(iao, jao));
+                for (int k = 0; k < 3; ++k)
+                  atomicAdd(&dpint(jj + jao, ii + iao,  k), dtmpj[k]);
+                for (int k = 0; k < 6; ++k)
+                  atomicAdd(&qpint(jj + jao, ii + iao,  k), qtmpj[k]);
+                atomicAdd(&hamiltonian(jj + jao, ii + iao), stmp(iao, jao) * hij);
+              }
             }
           }
         }
@@ -898,7 +897,7 @@ void get_hamiltonian_between_atoms(
   tensor3d_t<double> qpint,
   tensor2d_t<double> hamiltonian)
 {
-  dim3 dimGrid(mol.nat, 256, 1);
+  dim3 dimGrid(mol.nat, alist.nnl.max(), bas.nsh_id.max());
   dim3 dimBlock(1, 1, 1);
   switch(bas.maxl)
   {
