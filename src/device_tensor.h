@@ -40,9 +40,8 @@ public:
     return *this;
   }
 
-  __device__ inline T &operator()(int j, int i, char type)
+  __device__ inline T &operator()(int j, int i, char)
   {    
-    assert(type == 'f' || type == 'F'); // f for fortran
     #ifndef NDEBUG
     if(i < 1 || i > dim1 || j < 1 || j > dim2)
     {
@@ -67,10 +66,9 @@ public:
     return data[i * dim2 + j];
   }
 
-  __device__ inline const T &operator()(int j, int i, char type) const
+  __device__ inline const T &operator()(int j, int i, char) const
   {
     #ifndef NDEBUG
-    assert(type == 'f' || type == 'F'); // f for fortran
     if(i < 1 || i > dim1 || j < 1 || j > dim2)
     {
       printf("FORTRAN indexing error: (%i, %i) out of bounds for tensor of size (%i, %i)\n", i, j, dim1, dim2);
@@ -157,10 +155,9 @@ public:
     return *this;
   }
 
-  __device__ inline T &operator()(int k, int j, int i, char type)
+  __device__ inline T &operator()(int k, int j, int i, char )
   {    
     #ifndef NDEBUG
-    assert(type == 'f' || type == 'F'); // f for fortran
     if(i < 1 || i > dim1 || j < 1 || j > dim2 || k < 1 || k > dim3)
     {
       printf("FORTRAN indexing error: (%i, %i, %i) out of bounds for tensor of size (%i, %i, %i)\n", k, j, i, dim3, dim2, dim1);
@@ -184,10 +181,9 @@ public:
     return data[i * dim2 * dim3 + j * dim3 + k];
   }
 
-  __device__ inline const T &operator()(int k, int j, int i, char type) const
+  __device__ inline const T &operator()(int k, int j, int i, char ) const
   {
     #ifndef NDEBUG
-    assert(type == 'f' || type == 'F'); // f for fortran
     if(i < 1 || i > dim1 || j < 1 || j > dim2 || k < 1 || k > dim3)
     {
       printf("FORTRAN indexing error: (%i, %i, %i) out of bounds for tensor of size (%i, %i, %i)\n", k, j, i, dim3, dim2, dim1);

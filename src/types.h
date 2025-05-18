@@ -7,9 +7,8 @@
 #include "tensor.h"
 
 #define MAXG 12
-#define MAXL 6
-#define MAXL2 12
-#define SYMBOL_LENGTH 10 // Replace with the actual value of symbol_length in Fortran
+#define MAXL 4
+#define MAXL2 (MAXL * 2)
 
 /*    const int mol_nat,
     const int mol_nid,
