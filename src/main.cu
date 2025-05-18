@@ -588,42 +588,68 @@ __device__ void multipole_cgto_kernel(
     {2,2,2,},
   };
 
-  double s1d[MAXL2] = {0.0};
-  double rpi[3] = {0.0};
-  double rpj[3] = {0.0}; 
-  double dip[3] = {0.0}; 
-  double quad[6] = {0.0};
+
   constexpr double sqrtpi3 = 5.56832799683; // sqrt(pi)**3
   constexpr size_t n = mlao[angi];
   constexpr size_t m = mlao[angj];
 
-  double s3d_raw[n * m] = {0.0};
-  double d3d_raw[n * m * 3] = {0.0};
-  double q3d_raw[n * m * 6] = {0.0};
-
+  __shared__ double s3d_raw[n * m]; //= {0.0};
+  __shared__ double d3d_raw[n * m * 3]; //= {0.0};
+  __shared__ double q3d_raw[n * m * 6]; //= {0.0};
+  for (int i = threadIdx.x; i < n * m; i += blockDim.x)
+    s3d_raw[i] = 0.0;
+  for (int i = threadIdx.x; i < n * m * 3; i += blockDim.x)
+    d3d_raw[i] = 0.0;
+  for (int i = threadIdx.x; i < n * m * 6; i += blockDim.x)
+    q3d_raw[i] = 0.0;
   device_tensor2d_t<double> s3d(n, m,    &s3d_raw[0]); 
   device_tensor3d_t<double> d3d(n, m, 3, &d3d_raw[0]); 
   device_tensor3d_t<double> q3d(n, m, 6, &q3d_raw[0]); 
 
-  for (int ip = 0; ip < cgtoi.nprim; ++ip)
+  __shared__ double ialpha[MAXG];
+  __shared__ double icoeff[MAXG];
+  __shared__ double jalpha[MAXG];
+  __shared__ double jcoeff[MAXG];
+
+  for(int i = threadIdx.x; i < MAXG; i+=blockDim.x)
+    ialpha[i] = cgtoi.alpha[i];
+  for(int i = threadIdx.x; i < MAXG; i+=blockDim.x)
+    icoeff[i] = cgtoi.coeff[i];
+  for(int i = threadIdx.x; i < MAXG; i+=blockDim.x)
+    jalpha[i] = cgtoj.alpha[i];
+  for(int i = threadIdx.x; i < MAXG; i+=blockDim.x)
+    jcoeff[i] = cgtoj.coeff[i];
+  __syncthreads();
+
+  const int total = cgtoi.nprim * cgtoj.nprim;
+  for(int i = threadIdx.x; i < total; i+=blockDim.x)
+  // for (int ip = 0; ip < cgtoi.nprim; ++ip)
   {
-    for (int jp = 0; jp < cgtoj.nprim; ++jp)
+    // for (int jp = 0; jp < cgtoj.nprim; ++jp)
     {
-      auto eab = cgtoi.alpha[ip] + cgtoj.alpha[jp];
+      const int ip = i / cgtoj.nprim;
+      const int jp = i % cgtoj.nprim;
+
+      double s1d[MAXL2] = {0.0};
+      double rpi[3] = {0.0};
+      double rpj[3] = {0.0}; 
+      double dip[3] = {0.0}; 
+      double quad[6] = {0.0};
+      auto eab = ialpha[ip] + jalpha[jp];
       auto oab = 1.0 / eab;
-      auto est = cgtoi.alpha[ip] * cgtoj.alpha[jp] * r2 * oab;
+      auto est = ialpha[ip] * jalpha[jp] * r2 * oab;
 
       if (est > intcut) continue;
 
       auto pre = exp(-est) * sqrtpi3 * pow(sqrt(oab), 3);
       for (int k = 0; k < 3; ++k)
       {
-        rpi[k] = -vec[k] * cgtoj.alpha[jp] * oab;
-        rpj[k] = +vec[k] * cgtoi.alpha[ip] * oab;
+        rpi[k] = -vec[k] * jalpha[jp] * oab;
+        rpj[k] = +vec[k] * ialpha[ip] * oab;
       }
       for (int l = 0; l <= cgtoi.ang + cgtoj.ang + 2; ++l)
         s1d[l] = overlap_1d(l, eab);
-      double cc = cgtoi.coeff[ip] * cgtoj.coeff[jp] * pre;
+      double cc = icoeff[ip] * jcoeff[jp] * pre;
       
       for (int mli = 0; mli < mlao[cgtoi.ang]; ++mli)
       {
@@ -632,20 +658,24 @@ __device__ void multipole_cgto_kernel(
           double val = 0.0;
           multipole_3d(
             rpi, rpj,
-            cgtoi.alpha[ip], cgtoj.alpha[jp], 
+            ialpha[ip], jalpha[jp], 
             lx[mli + lmap[cgtoi.ang]], lx[mlj + lmap[cgtoj.ang]],
             s1d, val, dip, quad);
-
-          s3d(mli, mlj) += cc * val;
+          
+          // s3d(mli, mlj) += cc * val;
+          atomicAdd(&s3d(mli, mlj), cc * val);
           for (int k = 0; k < 3; ++k)
-            d3d(mli,mlj,k) += cc * dip[k];
+          // d3d(mli,mlj,k) += cc * dip[k];
+            atomicAdd(&d3d(mli, mlj, k), cc * dip[k]);
           for (int k = 0; k < 6; ++k)
-            q3d(mli,mlj,k) += cc * quad[k];
+            // q3d(mli,mlj,k) += cc * quad[k];
+            atomicAdd(&q3d(mli, mlj, k), cc * quad[k]);
         }
       }
     }
   }
-
+  __syncthreads();
+  if(threadIdx.x > 0 || threadIdx.y > 0) return;
 
 
   transform0(cgtoi.ang, cgtoj.ang, s3d, overlap);
@@ -803,40 +833,55 @@ __global__ void get_hamiltonian_between_atoms_kernel(
       int itr = alist.nltr[img + inl];
       int jzp = mol.id[jat];
       int js = bas.ish_at[jat];
-      for (int ish = blockIdx.z; ish < bas.nsh_id[izp]; ish += gridDim.z)
+
+      const auto total_iters = bas.nsh_id[izp] * bas.nsh_id[jzp];
+      for (int total = blockIdx.z; total < total_iters; total += gridDim.z)
+      // for (int ish = blockIdx.z; ish < bas.nsh_id[izp]; ish += gridDim.z)
       {
-        int ii = bas.iao_sh[is + ish];
-        for (int jsh = 0; jsh < bas.nsh_id[jzp]; ++jsh)
+        // int ii = bas.iao_sh[is + ish];
+        // for (int jsh = 0; jsh < bas.nsh_id[jzp]; ++jsh)
         {
-          int jj = bas.iao_sh[js + jsh];
+          const int ish = total / bas.nsh_id[jzp];
+          const int jsh = total % bas.nsh_id[jzp];
+          const int ii = bas.iao_sh[is + ish];
+          const int jj = bas.iao_sh[js + jsh];
+          // int jj = bas.iao_sh[js + jsh];
           
-          double vec[3] = {0.0};
-          double dtmpj[3] = {0.0};
-          double qtmpj[6] = {0.0};
-          for (int k = 0; k < 3; ++k)
+          __shared__ double vec[3]; //= {0.0};
+          __shared__ double dtmpj[3]; //= {0.0};
+          __shared__ double qtmpj[6]; //= {0.0};
+          double r2 = 0;
+          double rr = 0;
+
+          for (int k = threadIdx.x; k < 3; k+=blockDim.x)
             vec[k] = mol.xyz(iat, k) - mol.xyz(jat, k) - trans(itr, k);
-          double r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
-          double rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
+          __syncthreads();
+          r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
+          rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
+          
+          __shared__ double stmp_raw [N * N];
+          __shared__ double dtmpj_raw[N * N * 3];
+          __shared__ double qtmpj_raw[N * N * 6];
 
-          double stmp_raw[N * N] = {0.0};
-          double dtmpj_raw[N * N * 3] = {0.0};
-          double qtmpj_raw[N * N * 6] = {0.0};
+          for(int k = threadIdx.x; k < N * N; k+=blockDim.x)
+            stmp_raw[k] = 0.0;
+          for(int k = threadIdx.x; k < N * N * 3; k+=blockDim.x)
+            dtmpj_raw[k] = 0.0;
+          for(int k = threadIdx.x; k < N * N * 6; k+=blockDim.x)  
+            qtmpj_raw[k] = 0.0;
+          __syncthreads();
 
-          device_tensor2d_t<double> stmp (msao[bas.maxl], msao[bas.maxl], &stmp_raw[0]); 
+          device_tensor2d_t<double> stmp (msao[bas.maxl], msao[bas.maxl],    &stmp_raw[0]); 
           device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3, &dtmpj_raw[0]); 
           device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6, &qtmpj_raw[0]); 
-        
-          const auto &cgtoj = bas.cgto(jzp, jsh); 
-          const auto &cgtoi = bas.cgto(izp, ish);
+
+          const cgto_type &cgtoj = bas.cgto(jzp, jsh);
+          const cgto_type &cgtoi = bas.cgto(izp, ish);
+
           multipole_cgto(cgtoj, cgtoi, r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
 
-          // if(stmp.dim1 > 3 && stmp.dim2 > 0 && abs(stmp(3, 0) - (-0.0130592388)) <= 1e-7)
-          // {
-          //   if(ii == 13 && jj == 0)
-          //   {
-          //     printf("KERNEL: Condition met: stmp(3, 0) = %g\n", stmp(3, 0));
-          //   }
-          // }
+          if(threadIdx.x > 0 || threadIdx.y > 0) return;
+
           double shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
                   (1.0 + h0.shpoly(jzp, jsh) * rr);
           double hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
@@ -858,11 +903,6 @@ __global__ void get_hamiltonian_between_atoms_kernel(
               for (int k = 0; k < 6; ++k)
                 atomicAdd(&qpint(ii + iao, jj + jao, k), qtmpi(iao, jao, k));
 
-              // if(ii + iao == 16 && jj + jao == 0) {
-              //   printf("KERNEL: %d + %d && %d + %d\n", ii, iao, jj, jao);
-              //   printf("KERNEL: hamiltonian(%d, %d) = %f\n", ii + iao, jj + jao, hamiltonian(ii + iao, jj + jao));
-              //   printf("KERNEL: stmp(%d, %d) * hij = %.9g * %E = %E\n", iao, jao, stmp(iao, jao), hij, stmp(iao, jao) * hij);
-              // }
               atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
 
               
@@ -897,8 +937,8 @@ void get_hamiltonian_between_atoms(
   tensor3d_t<double> qpint,
   tensor2d_t<double> hamiltonian)
 {
-  dim3 dimGrid(mol.nat, alist.nnl.max(), bas.nsh_id.max());
-  dim3 dimBlock(1, 1, 1);
+  dim3 dimGrid(mol.nat, alist.nnl.max(), bas.nsh_id.max() * bas.nsh_id.max());
+  dim3 dimBlock(62, 1, 1);
   switch(bas.maxl)
   {
     case 0: 
