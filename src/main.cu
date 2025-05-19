@@ -134,12 +134,22 @@ __device__ inline void transform1(const device_tensor3d_t<T> &cart, device_tenso
 {
   if constexpr (li <= 1 && lj <= 1)
   {
-    const auto total = cart.dim1 * cart.dim2 * cart.dim3;
-    for(int t = threadIdx.x; t < total; t+= blockDim.x)
+    if(threadIdx.x == 0)
     {
-      // sphr(i,j,k) = cart(i,j,k);
-      sphr.data[t] = cart.data[t];
+      for(int i = 0; i < cart.dim1; i++)
+        for(int j = 0; j < cart.dim2; ++j)
+          for(int k = 0; k < cart.dim3; ++k)
+            sphr(i,j,k) = cart(i,j,k);
     }
+    // const auto total = cart.dim1 * cart.dim2 * cart.dim3;
+    // for(int t = threadIdx.x; t < total; t+= blockDim.x)
+    // {
+    //   const int i = t / (cart.dim2 * cart.dim3);
+    //   const int j = (t / cart.dim3) % cart.dim2;
+    //   const int k = t % cart.dim3;
+    //   sphr(i,j,k) = cart(i,j,k);
+    //   // sphr.data[t] = cart.data[t];
+    // }
   }
   else if constexpr (li <= 1 && lj == 2)
   {
@@ -537,8 +547,6 @@ __device__ void multipole_cgto_kernel(
     // {1,1,4,},
     // {2,2,2,},
   };
-
-
   constexpr size_t n = mlao[angi];
   constexpr size_t m = mlao[angj];
 
@@ -618,8 +626,12 @@ __device__ void multipole_cgto_kernel(
             atomicAdd(&s3d(mli, mlj), cc * val);
             #pragma unroll
             for (int k = 0; k < 3; ++k)
-            // d3d(mli,mlj,k) += cc * dip[k];
+            {
               atomicAdd(&d3d(mli, mlj, k), cc * dip[k]);
+            }
+            // printf("dip = [%g,\t%g,\t%g]\n", dip[0], dip[1], dip[2]);
+
+            // d3d(mli,mlj,k) += cc * dip[k];
             #pragma unroll
             for (int k = 0; k < 6; ++k)
               // q3d(mli,mlj,k) += cc * quad[k];
@@ -634,8 +646,19 @@ __device__ void multipole_cgto_kernel(
   // 1800 ms without, 2300 ms with
 
   transform0<double, angi, angj>(s3d, overlap);
-  transform1<double, angi, angj>(q3d, qpint);
   transform1<double, angi, angj>(d3d, dpint);
+  
+  // if(dpint(0, 1, 2) == 0)
+  // {
+  //   printf("angi = %d angj = %d\n", angi, angj);
+  //   printf("d3d = \n");
+  //   d3d.print();
+  // }
+  // if(ii + iao == 0 && jj + jao == 2 && k == 2)
+  // {
+  //   printf("dtmpi(iao = %d, jao = %d, k = %d) = %g\n", iao, jao, k, dtmpi(iao, jao, k));
+  // }
+  transform1<double, angi, angj>(q3d, qpint);
   __syncthreads();
 
   {
@@ -820,10 +843,10 @@ __global__ void get_hamiltonian_between_atoms_kernel(
           const double r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
           const double rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
           
+          /* Make stmp, dtmpi and qtmpi integral, shared arrays */
           __shared__ double stmp_raw [N * N];
           __shared__ double dtmpj_raw[N * N * 3];
           __shared__ double qtmpj_raw[N * N * 6];
-
           for(int k = threadIdx.x; k < N * N; k+=blockDim.x)
             stmp_raw[k] = 0.0;
           for(int k = threadIdx.x; k < N * N * 3; k+=blockDim.x)
@@ -831,11 +854,11 @@ __global__ void get_hamiltonian_between_atoms_kernel(
           for(int k = threadIdx.x; k < N * N * 6; k+=blockDim.x)  
             qtmpj_raw[k] = 0.0;
           __syncthreads();
-
           device_tensor2d_t<double> stmp (msao[bas.maxl], msao[bas.maxl],    &stmp_raw[0]); 
           device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3, &dtmpj_raw[0]); 
           device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6, &qtmpj_raw[0]); 
 
+          /* Read element-specific parameters from global mem */
           const int njao = msao[bas.cgto(jzp, jsh).ang];
           const int niao = msao[bas.cgto(izp, ish).ang];
           const double shpoly =  (1.0 + h0.shpoly(izp, ish) * rr) *
@@ -924,7 +947,8 @@ void get_hamiltonian_between_atoms(
   }
 }
 
-__global__ void get_hamiltonian_in_atoms(
+template <size_t maxl>
+__global__ void get_hamiltonian_in_atoms_kernel(
   const structure_type mol,
   const tensor2d_t<const double> trans,
   const adjacency_list alist,
@@ -937,48 +961,109 @@ __global__ void get_hamiltonian_in_atoms(
   tensor2d_t<double> hamiltonian)
 {
   constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13};
+  constexpr int N = msao[maxl];
 
-  int iat = blockIdx.x;
-  if (iat >= mol.nat) 
-    return;
-  int izp = mol.id[iat];
-  int is = bas.ish_at[iat];
-  double vec[3] = {0.0};
-  double r2 = 0.0;
-  double rr = sqrt(sqrt(r2) / (h0.rad[izp] + h0.rad[izp]));
-  for(int ish = blockIdx.y; ish < bas.nsh_id[izp]; ish += gridDim.y)
+  for(int iat = blockIdx.x; iat < mol.nat; iat += gridDim.x)
   {
-    int ii = bas.iao_sh[is + ish];
-    for(int jsh = 0; jsh < bas.nsh_id[izp]; ++jsh)
+    int izp = mol.id[iat];
+    int is = bas.ish_at[iat];
+    for(int ish = blockIdx.y; ish < bas.nsh_id[izp]; ish += gridDim.y)
     {
-      int jj = bas.iao_sh[is + jsh];
-
-      device_tensor2d_t<double> stmp(msao[bas.maxl], msao[bas.maxl]); 
-      device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3);
-      device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6); 
-      multipole_cgto(bas.cgto(izp, jsh), bas.cgto(izp, ish), 
-        r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
-      double shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
-        (1.0 + h0.shpoly(izp, jsh) * rr);
-      double hij = 0.5 * (selfenergy[is + ish] + selfenergy[is + jsh]) *
-        shpoly;
-      const int nao = msao[bas.cgto(izp, jsh).ang];
-      for(int iao = 0; iao < msao[bas.cgto(izp, ish).ang]; ++iao)
+      int ii = bas.iao_sh[is + ish];
+      for(int jsh = blockIdx.z; jsh < bas.nsh_id[izp]; jsh += gridDim.z)
       {
-        for(int jao = 0; jao < nao; ++jao)
+        int jj = bas.iao_sh[is + jsh];
+        
+        double vec[3] = {0.0};
+        double r2 = 0.0;
+        double rr = sqrt(sqrt(r2) / (h0.rad[izp] + h0.rad[izp]));
+        
+        __shared__ double stmp_raw [N * N];
+        __shared__ double dtmpi_raw[N * N * 3];
+        __shared__ double qtmpi_raw[N * N * 6];
+        for(int k = threadIdx.x; k < N * N; k+=blockDim.x)
+          stmp_raw[k] = 0.0;
+        for(int k = threadIdx.x; k < N * N * 3; k+=blockDim.x)
+          dtmpi_raw[k] = 0.0;
+        for(int k = threadIdx.x; k < N * N * 6; k+=blockDim.x)  
+          qtmpi_raw[k] = 0.0;
+        device_tensor2d_t<double> stmp (N,  N,     &stmp_raw[0]); 
+        device_tensor3d_t<double> dtmpi(N,  N,  3, &dtmpi_raw[0]); 
+        device_tensor3d_t<double> qtmpi(N,  N,  6, &qtmpi_raw[0]); 
+        __syncthreads();
+
+        multipole_cgto(bas.cgto(izp, jsh), bas.cgto(izp, ish), 
+          r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
+        __syncthreads();
+
+        double shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
+          (1.0 + h0.shpoly(izp, jsh) * rr);
+        double hij = 0.5 * (selfenergy[is + ish] + selfenergy[is + jsh]) *
+          shpoly;
+        const int jnao = msao[bas.cgto(izp, jsh).ang];
+        const int inao = msao[bas.cgto(izp, ish).ang];
+        for(int iao = 0; iao < inao; ++iao)
         {
-          atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
-          for(int k = 0; k < 3; ++k)
-            atomicAdd(&dpint(ii + iao, jj + jao, k), dtmpi(iao, jao, k));
-          for(int k = 0; k < 6; ++k)
-            atomicAdd(&qpint(ii + iao, jj + jao, k), qtmpi(iao, jao, k));
-          atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
+          for(int jao = 0; jao < jnao; ++jao)
+          {
+            atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
+            for(int k = 0; k < 3; ++k)
+            {
+              // if(ii + iao == 0 && jj + jao == 2 && k == 2)
+              // {
+              //   printf("==== CUDA ====\n");
+              //   printf("dtmpi(iao = %d, jao = %d, k = %d) = %g\n", iao, jao, k, dtmpi(iao, jao, k));
+              // }
+              atomicAdd(&dpint(ii + iao, jj + jao, k), dtmpi(iao, jao, k));
+            }
+
+            // printf("dpint(2,0,2) = %g\n", dpint(2,0,2));
+            for(int k = 0; k < 6; ++k)
+              atomicAdd(&qpint(ii + iao, jj + jao, k), qtmpi(iao, jao, k));
+            atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
+          }
         }
       }
     }
   }
+
+  // printf("==== CUDA ====\n");
+  // printf("dpint(0, 2, 2) = %g\n", dpint(0, 2, 2));
 }
 
+void get_hamiltonian_in_atoms( 
+  const structure_type mol,
+  const tensor2d_t<const double> trans, 
+  const adjacency_list alist,
+  const basis_type bas,
+  const tb_hamiltonian h0,
+  const tensor1d_t<const double> selfenergy,
+  tensor2d_t<double> overlap,
+  tensor3d_t<double> dpint,
+  tensor3d_t<double> qpint,
+  tensor2d_t<double> hamiltonian)
+{
+  // printf("========================================================\n");
+  // printf("=================== get_hamiltonian_in_atoms ===================\n");
+  // printf("========================================================\n");
+  dim3 dimGrid(mol.nat, 1, 1);
+  dim3 dimBlock(1, 1, 1);
+  switch(bas.maxl)
+  {
+    case 0: 
+      get_hamiltonian_in_atoms_kernel<0><<<dimGrid, dimBlock>>>(mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
+      break;
+    case 1:
+      get_hamiltonian_in_atoms_kernel<1><<<dimGrid, dimBlock>>>(mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
+      break;
+    case 2:
+      get_hamiltonian_in_atoms_kernel<2><<<dimGrid, dimBlock>>>(mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
+      break;
+    default:
+      printf("[Fatal] get_hamiltonian_in_atoms_kernel not supported for maxl=%d\n", bas.maxl);
+      break;
+  }
+}
 void setCudaMallocHeapSizeOnce(size_t size) {
   static bool isHeapSizeSet = false; // Tracks if the limit has already been set
   if (!isHeapSizeSet) {
@@ -1147,8 +1232,9 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   // Launch kernel part II
   ////////////////////////////////////////////
   {
+    printf("nsh id max = %d\n", bas.nsh_id.max());
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
-    get_hamiltonian_in_atoms<<<{mol.nat, 512, 1}, 1>>>(
+    get_hamiltonian_in_atoms(
         mol,
         trans_ten,
         alist,
@@ -1161,7 +1247,6 @@ extern "C" void cuda_get_hamiltonian_kernel_(
         hamiltonian_ten);
     CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaGetLastError());
-
     cudaEventRecord(stop); cudaEventSynchronize(stop);
 
     cudaEventElapsedTime(&milliseconds, start, stop);
@@ -1170,6 +1255,9 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     total_time += milliseconds;
   }
   printf("Total kernel time = %f ms\n", total_time);
+  
+  // printf("dpint(2,0,2) = %f\n", dpint_ten(2,0,2));
+  
   ////////////////////////////
   // copy data back to host
   ////////////////////////////

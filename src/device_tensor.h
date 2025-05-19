@@ -220,7 +220,7 @@ public:
     printf("[");
     for (int i = 0; i < dim1; ++i)
     {
-      printf("[");
+      printf("[\n");
       for (int j = 0; j < dim2; ++j)
       {
         printf("[");
@@ -228,7 +228,7 @@ public:
         {
           printf("%f, ", static_cast<double>(data[i * dim2 * dim3 + j * dim3 + k]));
         }
-        printf("], ");
+        printf("], \n");
       }
       printf("], ");
     }
