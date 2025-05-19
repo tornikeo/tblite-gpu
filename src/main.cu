@@ -1,4 +1,4 @@
-// #define NDEBUG
+#define NDEBUG
 
 #include <cassert>
 #include <cstdio>
@@ -974,9 +974,9 @@ __global__ void get_hamiltonian_in_atoms_kernel(
       {
         int jj = bas.iao_sh[is + jsh];
         
-        double vec[3] = {0.0};
-        double r2 = 0.0;
-        double rr = sqrt(sqrt(r2) / (h0.rad[izp] + h0.rad[izp]));
+        const double vec[3] = {0.0};
+        const double r2 = 0.0;
+        const double rr = 0.0;//sqrt(sqrt(r2) / (h0.rad[izp] + h0.rad[izp]));
         
         __shared__ double stmp_raw [N * N];
         __shared__ double dtmpi_raw[N * N * 3];
@@ -996,28 +996,23 @@ __global__ void get_hamiltonian_in_atoms_kernel(
           r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
         __syncthreads();
 
-        double shpoly = (1.0 + h0.shpoly(izp, ish) * rr) *
-          (1.0 + h0.shpoly(izp, jsh) * rr);
-        double hij = 0.5 * (selfenergy[is + ish] + selfenergy[is + jsh]) *
+        const double shpoly = 1.0 / 1.0; /*(1.0 + h0.shpoly(izp, ish) * rr) *
+          (1.0 + h0.shpoly(izp, jsh) * rr);*/
+        const double hij = 0.5 * (selfenergy[is + ish] + selfenergy[is + jsh]) *
           shpoly;
         const int jnao = msao[bas.cgto(izp, jsh).ang];
         const int inao = msao[bas.cgto(izp, ish).ang];
-        for(int iao = 0; iao < inao; ++iao)
+        const int total = inao * jnao;
+        for(int i = threadIdx.x; i < total; i+=blockDim.x)
+        // for(int iao = 0; iao < inao; ++iao)
         {
-          for(int jao = 0; jao < jnao; ++jao)
+          // for(int jao = 0; jao < jnao; ++jao)
           {
+            const int iao = i / jnao;
+            const int jao = i % jnao;
             atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
             for(int k = 0; k < 3; ++k)
-            {
-              // if(ii + iao == 0 && jj + jao == 2 && k == 2)
-              // {
-              //   printf("==== CUDA ====\n");
-              //   printf("dtmpi(iao = %d, jao = %d, k = %d) = %g\n", iao, jao, k, dtmpi(iao, jao, k));
-              // }
               atomicAdd(&dpint(ii + iao, jj + jao, k), dtmpi(iao, jao, k));
-            }
-
-            // printf("dpint(2,0,2) = %g\n", dpint(2,0,2));
             for(int k = 0; k < 6; ++k)
               atomicAdd(&qpint(ii + iao, jj + jao, k), qtmpi(iao, jao, k));
             atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
@@ -1026,9 +1021,6 @@ __global__ void get_hamiltonian_in_atoms_kernel(
       }
     }
   }
-
-  // printf("==== CUDA ====\n");
-  // printf("dpint(0, 2, 2) = %g\n", dpint(0, 2, 2));
 }
 
 void get_hamiltonian_in_atoms( 
@@ -1043,11 +1035,8 @@ void get_hamiltonian_in_atoms(
   tensor3d_t<double> qpint,
   tensor2d_t<double> hamiltonian)
 {
-  // printf("========================================================\n");
-  // printf("=================== get_hamiltonian_in_atoms ===================\n");
-  // printf("========================================================\n");
-  dim3 dimGrid(mol.nat, 1, 1);
-  dim3 dimBlock(1, 1, 1);
+  dim3 dimGrid(mol.nat, bas.nsh_id.max(), bas.nsh_id.max());
+  dim3 dimBlock(64, 1, 1);
   switch(bas.maxl)
   {
     case 0: 
