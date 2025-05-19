@@ -419,8 +419,8 @@ __device__ inline void multipole_3d(
     {
       assert(l < MAXL2 - 1);
       v1d[k][0] += s1d[l] * vv[l];
-      v1d[k][1] += (s1d[l + 1] + rpi[k] * s1d[l]) * vv[l];
-      v1d[k][2] += (s1d[l + 2] + 2 * rpi[k] * s1d[l + 1] + rpi[k] * rpi[k] * s1d[l]) * vv[l];
+      v1d[k][1] += (s1d[l + 1] + rpj[k] * s1d[l]) * vv[l];
+      v1d[k][2] += (s1d[l + 2] + 2 * rpj[k] * s1d[l + 1] + rpj[k] * rpj[k] * s1d[l]) * vv[l];
     }
   }
   s3d = v1d[0][0] * v1d[1][0] * v1d[2][0];
