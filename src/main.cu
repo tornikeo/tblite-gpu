@@ -1218,7 +1218,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
 
     cudaEventRecord(stop); cudaEventSynchronize(stop);
     cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("gpu_between_atoms %f ms\n", milliseconds);
+    printf("gpu_between_atoms %f\n", milliseconds);
     total_time += milliseconds;
     cudaEventDestroy(start); cudaEventDestroy(stop);
   }
