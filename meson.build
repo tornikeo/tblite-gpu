@@ -5,7 +5,7 @@ project(
   license: 'Apache-2.0 OR MIT',
   meson_version: '>=0.53',
   default_options: [
-    'buildtype=debugoptimized',
+    'buildtype=debuoptimized',
     'default_library=both',
   ],
 )
@@ -14,11 +14,23 @@ build_args_common = [
   '-ccbin=cc',
   '-c',
   # The 64-bit floating-point version of atomicAdd() is only supported by devices of compute capability
-  # 6.x and higher. We put our current compute cap for an  RTX 4060
-  '-gencode=arch=compute_89,code=sm_89',
+  # 6.x and higher. We put our current compute cap for an RTX 4060
+  # '-gencode=arch=compute_90,code=sm_90',  # Hypothetical future architecture
+  '-gencode=arch=compute_89,code=sm_89',  # RTX 4060
+  # '-gencode=arch=compute_80,code=sm_80',  # Ampere architecture (e.g., A100)
+  # '-gencode=arch=compute_75,code=sm_75',  # Turing architecture (e.g., RTX 2080)
+  # '-gencode=arch=compute_70,code=sm_70',  # Volta architecture (e.g., V100)
+  # '-gencode=arch=compute_61,code=sm_61',  # Pascal architecture (e.g., GTX 1080) (unsupported due to __grid_constant__ not being available
+  # '-gencode=arch=compute_60,code=sm_60',  # Pascal architecture (e.g., Tesla P100)
   '-m64',
-]    
-
+  '-O3',
+  # '--use_fast_math',
+  # '--ftz=true',
+  # '--prec-div=false',
+  # '--prec-sqrt=false',
+  # '--default-stream=per-thread',
+  # '--maxrregcount=128' # due to double precision use
+]
 
 install = not (meson.is_subproject() and get_option('default_library') == 'static')
 

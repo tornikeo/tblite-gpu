@@ -1,5 +1,6 @@
 #define NDEBUG
 
+#define MAX_THREADS_PER_BLOCK 36
 #include <cassert>
 #include <cstdio>
 #include <cuda.h>
@@ -728,7 +729,10 @@ __device__ inline void shift_operator(
 }
 
 template <size_t maxl>
-__global__ void get_hamiltonian_between_atoms_kernel(
+__global__ void 
+__launch_bounds__(MAX_THREADS_PER_BLOCK)
+get_hamiltonian_between_atoms_kernel(
+    const __grid_constant__ int batch_size,
     const __grid_constant__ __restrict__ structure_type mol,
     const __grid_constant__ tensor2d_t<const double> trans,
     const __grid_constant__ __restrict__ adjacency_list alist,
@@ -743,8 +747,13 @@ __global__ void get_hamiltonian_between_atoms_kernel(
   constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13};
   constexpr int N = msao[maxl];
 
-  for(int iat = blockIdx.x; iat < mol.nat; iat += gridDim.x)
+  const int total_iters = batch_size * mol.nat;
+  // for(int iat = blockIdx.x; iat < mol.nat; iat += gridDim.x)
+  for(int item = blockIdx.x; item < total_iters; item+=gridDim.x)
   {
+    const int iat = item / batch_size;
+    const int batch_idx = item % batch_size;
+
     const int izp = mol.id[iat];
     const int is = bas.ish_at[iat];
     const int inl = alist.inl[iat];
@@ -822,32 +831,49 @@ __global__ void get_hamiltonian_between_atoms_kernel(
               const int jao = i % njao;
               shift_operator(iao, jao, vec, stmp, dtmpi, qtmpi, dtmpj, qtmpj); 
 
-              atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
+              // atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
+              overlap(ii + iao, jj + jao) += stmp(iao, jao);
+              
               #pragma unroll
               for (int k = 0; k < 3; ++k)
-                atomicAdd(&dpint(ii + iao, jj + jao, k), dtmpi(iao, jao, k));
+              {
+                // atomicAdd(&dpint(ii + iao, jj + jao, k), dtmpi(iao, jao, k));
+                dpint(ii + iao, jj + jao, k) += dtmpi(iao, jao, k);
+              }
 
               #pragma unroll
               for (int k = 0; k < 6; ++k)
-                atomicAdd(&qpint(ii + iao, jj + jao, k), qtmpi(iao, jao, k));
+              {
+                // atomicAdd(&qpint(ii + iao, jj + jao, k), qtmpi(iao, jao, k));
+                qpint(ii + iao, jj + jao, k) += qtmpi(iao, jao, k);
+              }
 
-              atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
+              // atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
+              hamiltonian(ii + iao, jj + jao) += stmp(iao, jao) * hij;
 
               /* TODO: This is a symmetrification of these matrices. Maybe this should be
               done in the outside this loop? */
               if (iat != jat) // 2200ms vs 2300ms
               {
-                atomicAdd(&overlap(jj + jao, ii + iao), stmp(iao, jao));
+                // atomicAdd(&overlap(jj + jao, ii + iao), stmp(iao, jao));
+                overlap(jj + jao, ii + iao) += stmp(iao, jao);
 
                 #pragma unroll
                 for (int k = 0; k < 3; ++k)
-                  atomicAdd(&dpint(jj + jao, ii + iao,  k), dtmpj[k]);
+                {
+                  // atomicAdd(&dpint(jj + jao, ii + iao,  k), dtmpj[k]);
+                  dpint(jj + jao, ii + iao, k) += dtmpj[k];
+                }
 
                 #pragma unroll
                 for (int k = 0; k < 6; ++k)
-                  atomicAdd(&qpint(jj + jao, ii + iao,  k), qtmpj[k]);
+                {
+                  // atomicAdd(&qpint(jj + jao, ii + iao,  k), qtmpj[k]);
+                  qpint(jj + jao, ii + iao, k) += qtmpj[k];
+                }
                 
-                atomicAdd(&hamiltonian(jj + jao, ii + iao), stmp(iao, jao) * hij);
+                // atomicAdd(&hamiltonian(jj + jao, ii + iao), stmp(iao, jao) * hij);
+                hamiltonian(jj + jao, ii + iao) += stmp(iao, jao) * hij;
               }
             }
           }
@@ -857,7 +883,8 @@ __global__ void get_hamiltonian_between_atoms_kernel(
   }
 }
 
-void get_hamiltonian_between_atoms( 
+void get_hamiltonian_between_atoms(
+  const int batch_size,
   const structure_type mol,
   const tensor2d_t<const double> trans,
   const adjacency_list alist,
@@ -869,18 +896,18 @@ void get_hamiltonian_between_atoms(
   tensor3d_t<double> qpint,
   tensor2d_t<double> hamiltonian)
 {
-  dim3 dimGrid(mol.nat, alist.nnl.max(), bas.nsh_id.max() * bas.nsh_id.max());
-  dim3 dimBlock(64, 1, 1);
+  dim3 dimGrid(batch_size * mol.nat, alist.nnl.max() * bas.nsh_id.max(), bas.nsh_id.max());
+  dim3 dimBlock(MAX_THREADS_PER_BLOCK, 1, 1);
   switch(bas.maxl)
   {
     case 0: 
-      get_hamiltonian_between_atoms_kernel<0><<<dimGrid, dimBlock>>>(mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
+      get_hamiltonian_between_atoms_kernel<0><<<dimGrid, dimBlock>>>(batch_size, mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
       break;
     case 1: 
-      get_hamiltonian_between_atoms_kernel<1><<<dimGrid, dimBlock>>>(mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
+      get_hamiltonian_between_atoms_kernel<1><<<dimGrid, dimBlock>>>(batch_size, mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
       break;
     case 2:
-      get_hamiltonian_between_atoms_kernel<2><<<dimGrid, dimBlock>>>(mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
+      get_hamiltonian_between_atoms_kernel<2><<<dimGrid, dimBlock>>>(batch_size, mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
       break;
     default:
       printf("[Fatal] get_hamiltonian_between_atoms_kernel not supported for maxl=%d\n", bas.maxl);
@@ -889,7 +916,10 @@ void get_hamiltonian_between_atoms(
 }
 
 template <size_t maxl>
-__global__ void get_hamiltonian_in_atoms_kernel(
+
+__global__ void 
+__launch_bounds__(MAX_THREADS_PER_BLOCK)
+get_hamiltonian_in_atoms_kernel(
   const __grid_constant__ __restrict__ structure_type mol,
   const __grid_constant__ tensor2d_t<const double> trans,
   const __grid_constant__ __restrict__ adjacency_list alist,
@@ -981,7 +1011,7 @@ void get_hamiltonian_in_atoms(
   tensor2d_t<double> hamiltonian)
 {
   dim3 dimGrid(mol.nat, bas.nsh_id.max(), bas.nsh_id.max());
-  dim3 dimBlock(64, 1, 1);
+  dim3 dimBlock(MAX_THREADS_PER_BLOCK, 1, 1);
   switch(bas.maxl)
   {
     case 0: 
@@ -1000,6 +1030,7 @@ void get_hamiltonian_in_atoms(
 }
 
 extern "C" void cuda_get_hamiltonian_kernel_(
+    int batch_size,
     int nao,
     int nelem,
 
@@ -1009,7 +1040,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     const int mol_nbd,
     const int *mol_id, int mol_id_dim1,
     const int *mol_num, int mol_num_dim1,
-    const double *mol_xyz, int mol_xyz_dim1, int mol_xyz_dim2,
+    const double *mol_xyz, int mol_xyz_dim1, int mol_xyz_dim2, // BATCH
     const int mol_uhf,
     const double mol_charge,
     // const double *mol_lattice, int mol_lattice_dim1, int mol_lattice_dim2,
@@ -1052,15 +1083,15 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     const double *h0_refocc, int h0_refocc_dim1, int h0_refocc_dim2,
 
     // Diagonal elememts of the Hamiltonian  (nelem)
-    const double *selfenergy,
+    const double *selfenergy, // BATCH
     // Overlap integral matrix (nao, nao)
-    double *overlap,
+    double *overlap, // BATCH
     // Dipole moment integral matrix (nao, nao, 3)
-    double *dpint,
+    double *dpint, // BATCH
     // Quadrupole moment integral matrix (nao, nao, 6)
-    double *qpint,
+    double *qpint, // BATCH
     // Hamiltonian matrix (nao, nao)
-    double *hamiltonian
+    double *hamiltonian // BATCH
     // double * time
 )
 {
@@ -1113,10 +1144,67 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   tensor3d_t<double> qpint_ten(qpint, nao, nao, 6);
   tensor2d_t<double> hamiltonian_ten(hamiltonian, nao, nao);
   
+  /////////////////////////////////////////////
+  // Calculate total number of bytes transferred
+  /////////////////////////////////////////////
+  size_t total_bytes_in = 0;
+  size_t total_bytes_out = 0;
+  // mol
+  total_bytes_in += sizeof(structure_type)
+    + sizeof(double) * mol.xyz.size() 
+    + sizeof(int) * mol.num.size()
+    + sizeof(int) * mol.id.size();
+  // alist
+  total_bytes_in += sizeof(adjacency_list)
+    + sizeof(int) * alist.inl.size()
+    + sizeof(int) * alist.nnl.size()
+    + sizeof(int) * alist.nlat.size()
+    + sizeof(int) * alist.nltr.size();
+  // bas
+  total_bytes_in += sizeof(basis_type)
+    + sizeof(cgto_type) * bas.cgto.size()
+    + sizeof(int) * bas.nsh_id.size()
+    + sizeof(int) * bas.nsh_at.size()
+    + sizeof(int) * bas.nao_sh.size()
+    + sizeof(int) * bas.iao_sh.size()
+    + sizeof(int) * bas.ish_at.size()
+    + sizeof(int) * bas.ao2at.size()
+    + sizeof(int) * bas.ao2sh.size()
+    + sizeof(int) * bas.sh2at.size();
+  // h0
+  total_bytes_in += sizeof(tb_hamiltonian)
+    + sizeof(double) * h0.selfenergy.size()
+    + sizeof(double) * h0.kcn.size()
+    + sizeof(double) * h0.kq1.size()
+    + sizeof(double) * h0.kq2.size()
+    + sizeof(double) * h0.hscale.size()
+    + sizeof(double) * h0.shpoly.size()
+    + sizeof(double) * h0.rad.size()
+    + sizeof(double) * h0.refocc.size();
+  // selfenergy
+  total_bytes_in += sizeof(double) * selfenergy_ten.size();
+  // overlap
+  total_bytes_in += sizeof(double) * overlap_ten.size();
+  // dpint
+  total_bytes_in += sizeof(double) * dpint_ten.size();
+  // qpint
+  total_bytes_in += sizeof(double) * qpint_ten.size();
+  // hamiltonian
+  total_bytes_in += sizeof(double) * hamiltonian_ten.size();
+
+  total_bytes_out = sizeof(double) * overlap_ten.size()
+    + sizeof(double) * dpint_ten.size()
+    + sizeof(double) * qpint_ten.size()
+    + sizeof(double) * hamiltonian_ten.size();
+  
+  printf("gpu_gb_in %f\n", (double)total_bytes_in / 1e9);
+  printf("gpu_gb_out %f\n", (double)total_bytes_out / 1e9);
+  printf("gpu_gb_total %f\n", (double)(total_bytes_in + total_bytes_out) / 1e9);
   
   ////////////////////////////////////////////
   // Launch kernel part I, between-atom interactions
   ////////////////////////////////////////////
+  batch_size = 1024 * 4;
   cudaEvent_t start, stop;
   float total_time = 0;
   float milliseconds = 0;
@@ -1124,6 +1212,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     cudaDeviceSynchronize();
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
     get_hamiltonian_between_atoms(
+      batch_size,
       mol,
       trans_ten,
       alist,
@@ -1139,7 +1228,8 @@ extern "C" void cuda_get_hamiltonian_kernel_(
 
     cudaEventRecord(stop); cudaEventSynchronize(stop);
     cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("Kernel part I execution time: %f ms\n", milliseconds);
+    printf("gpu_between_atoms %f ms\n", milliseconds);
+    printf("gpu_between_atoms_per_element %f ms\n", milliseconds / batch_size);
     total_time += milliseconds;
     cudaEventDestroy(start); cudaEventDestroy(stop);
   }
@@ -1148,7 +1238,6 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   // Launch kernel part II, in-atom interactions
   ////////////////////////////////////////////
   {
-    printf("nsh id max = %d\n", bas.nsh_id.max());
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
     get_hamiltonian_in_atoms(
         mol,
@@ -1166,12 +1255,11 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     cudaEventRecord(stop); cudaEventSynchronize(stop);
 
     cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("Kernel part II execution time: %f ms\n", milliseconds);
+    printf("gpu_in_atoms %f\n", milliseconds);
     cudaEventDestroy(start); cudaEventDestroy(stop);
     total_time += milliseconds;
   }
-  printf("Total kernel time = %f ms\n", total_time);
-  
+  printf("gpu_time %f\n", total_time);
   ////////////////////////////
   // copy data back to host
   ////////////////////////////
