@@ -15,12 +15,12 @@
 #define s3_4 (s3 / 2) // sqrt(3)/2
 #define sqrtpi3 5.56832799683 // sqrt(pi)**3
 
-template <typename T, size_t li, size_t lj>
-__device__ inline void transform0(const device_tensor2d_t<T> &cart,  device_tensor2d_t<T> &sphr)
+template <typename T>
+__device__ inline void transform0(size_t li, size_t lj, const device_tensor2d_t<T> &cart,  device_tensor2d_t<T> &sphr)
 {
   /* sphr is a larger array. It contains the max size that an integral might need
   so iterate over smaller cart dims instead*/
-  if constexpr (li <= 1 && lj <= 1)
+  if (li <= 1 && lj <= 1)
   {
     // for(int i = 0; i < cart.dim1; i++)
     //   for(int j = 0; j < cart.dim2; ++j)
@@ -32,7 +32,7 @@ __device__ inline void transform0(const device_tensor2d_t<T> &cart,  device_tens
       sphr(i,j) = cart(i,j);
     }
   } 
-  else if constexpr (li <= 1 && lj == 2)
+  else if (li <= 1 && lj == 2)
   {
     for(int i = threadIdx.x + 1; i <= cart.dim1; i += blockDim.x)
     {
@@ -49,7 +49,7 @@ __device__ inline void transform0(const device_tensor2d_t<T> &cart,  device_tens
         sphr(5, i, 'f') = s3 * cart(4, i, 'f');
     }
   } 
-  else if constexpr (li == 2 && lj <= 1) 
+  else if (li == 2 && lj <= 1) 
   {    
     for(int i = threadIdx.x + 1; i <= cart.dim2; i += blockDim.x)
     {
@@ -65,7 +65,7 @@ __device__ inline void transform0(const device_tensor2d_t<T> &cart,  device_tens
       sphr(i, 5, 'f') = s3 * cart(i, 4, 'f');
     }
   } 
-  else if constexpr (li == 2 && lj == 2)
+  else if (li == 2 && lj == 2)
   {
     /* REMEMBER 
       i,j -> i-1, j-1, due to Fortran indexing
@@ -130,10 +130,10 @@ __device__ inline void transform0(const device_tensor2d_t<T> &cart,  device_tens
   }
 }
 
-template <typename T, size_t li, size_t lj>
-__device__ inline void transform1(const device_tensor3d_t<T> &cart, device_tensor3d_t<T> &sphr)
+template <typename T>
+__device__ inline void transform1(size_t li, size_t lj, const device_tensor3d_t<T> &cart, device_tensor3d_t<T> &sphr)
 {
-  if constexpr (li <= 1 && lj <= 1) /* HOT PATH */
+  if (li <= 1 && lj <= 1) /* HOT PATH */
   {
     const auto total = cart.dim1 * cart.dim2 * cart.dim3;
     for(int t = threadIdx.x; t < total; t += blockDim.x)
@@ -144,7 +144,7 @@ __device__ inline void transform1(const device_tensor3d_t<T> &cart, device_tenso
       sphr(i,j,k) = cart(i,j,k);
     }
   }
-  else if constexpr (li <= 1 && lj == 2)
+  else if (li <= 1 && lj == 2)
   {
     const int total = cart.dim1 * cart.dim3;
     for(int t = threadIdx.x; t < total; t+=blockDim.x)
@@ -167,7 +167,7 @@ __device__ inline void transform1(const device_tensor3d_t<T> &cart, device_tenso
       }
     }
   }
-  else if constexpr (li == 2 && lj <= 1)
+  else if (li == 2 && lj <= 1)
   {
     // if(threadIdx.x > 0) return;
     // sphr(:, 1) = cart(:, 3) - 0.5_wp * (cart(:, 1) + cart(:, 2))
@@ -191,7 +191,7 @@ __device__ inline void transform1(const device_tensor3d_t<T> &cart, device_tenso
       }
     }
   } 
-  else if  constexpr (li == 2 && lj == 2)
+  else if (li == 2 && lj == 2)
   {
     for(int k = threadIdx.x+1; k <= cart.dim3; k+=blockDim.x)
     {
@@ -437,7 +437,7 @@ __device__ inline void multipole_3d(
   q3d[5] = v1d[0][0] * v1d[1][0] * v1d[2][2];
 }
 
-template <size_t angi, size_t angj>
+template <size_t maxl>
 __device__ void multipole_cgto_kernel(
   const cgto_type &cgtoj,
   const cgto_type &cgtoi,
@@ -537,8 +537,11 @@ __device__ void multipole_cgto_kernel(
     {1,1,4,},
     {2,2,2,},
   };
-  constexpr size_t N = mlao[angi];
-  constexpr size_t M = mlao[angj];
+  constexpr size_t N = mlao[maxl];
+  constexpr size_t M = mlao[maxl];
+
+  const int angi = cgtoi.ang;
+  const int angj = cgtoj.ang;
 
   /* Initialize spherical integral matrices in shared memory*/
   __shared__ double s3d_raw[N * M]; //= {0.0};
@@ -550,9 +553,9 @@ __device__ void multipole_cgto_kernel(
     d3d_raw[i] = 0.0;
   for (int i = threadIdx.x; i < N * M * 6; i += blockDim.x)
     q3d_raw[i] = 0.0;
-  device_tensor2d_t<double> s3d(N, M,    &s3d_raw[0]); 
-  device_tensor3d_t<double> d3d(N, M, 3, &d3d_raw[0]); 
-  device_tensor3d_t<double> q3d(N, M, 6, &q3d_raw[0]); 
+  device_tensor2d_t<double> s3d(mlao[angi], mlao[angj], &s3d_raw[0]); 
+  device_tensor3d_t<double> d3d(mlao[angi], mlao[angj], 3, &d3d_raw[0]); 
+  device_tensor3d_t<double> q3d(mlao[angi], mlao[angj], 6, &q3d_raw[0]); 
 
   /* Copy alpha and coeff for cgto, into shared memory */
   __shared__ double ialpha[MAXG];
@@ -635,13 +638,13 @@ __device__ void multipole_cgto_kernel(
     __syncthreads();
   }
   
-  transform0<double, angi, angj>(s3d, overlap);
-  transform1<double, angi, angj>(d3d, dpint);
-  transform1<double, angi, angj>(q3d, qpint);
+  transform0<double>(angi, angj, s3d, overlap);
+  transform1<double>(angi, angj, d3d, dpint);
+  transform1<double>(angi, angj, q3d, qpint);
   __syncthreads();
 
   {
-    constexpr int total = msao[angi] * msao[angj];
+    const int total = msao[angi] * msao[angj];
     // for (int mli = 0; mli < msao[cgtoi.ang]; ++mli)
     #pragma unroll
     for(int i = threadIdx.x; i < total; i+=blockDim.x)
@@ -664,7 +667,8 @@ __device__ void multipole_cgto_kernel(
   __syncthreads();
 }
 
-__device__ void multipole_cgto(
+template <size_t maxl>
+__device__ __noinline__ void multipole_cgto(
   const cgto_type &cgtoj,
   const cgto_type &cgtoi,
   const double r2,
@@ -674,26 +678,28 @@ __device__ void multipole_cgto(
   device_tensor3d_t<double> &dpint,
   device_tensor3d_t<double> &qpint)
 {
-  if      (cgtoi.ang == 0 && cgtoj.ang == 0)
-    multipole_cgto_kernel<0,0>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  else if (cgtoi.ang == 0 && cgtoj.ang == 1)
-    multipole_cgto_kernel<0,1>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  else if (cgtoi.ang == 0 && cgtoj.ang == 2)
-    multipole_cgto_kernel<0,2>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  else if (cgtoi.ang == 1 && cgtoj.ang == 0)
-    multipole_cgto_kernel<1,0>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  else if (cgtoi.ang == 1 && cgtoj.ang == 1)
-    multipole_cgto_kernel<1,1>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  else if (cgtoi.ang == 1 && cgtoj.ang == 2)
-    multipole_cgto_kernel<1,2>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  else if (cgtoi.ang == 2 && cgtoj.ang == 0)
-    multipole_cgto_kernel<2,0>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  else if (cgtoi.ang == 2 && cgtoj.ang == 1)
-    multipole_cgto_kernel<2,1>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  else if (cgtoi.ang == 2 && cgtoj.ang == 2)
-    multipole_cgto_kernel<2,2>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  else
-    printf("[Fatal] multipole_cgto not supported for li=%d lj=%d\n", cgtoi.ang,cgtoj.ang);
+  assert(cgtoi.ang <= 2 && cgtoj.ang <= 2);
+  multipole_cgto_kernel<maxl>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
+  // if      (cgtoi.ang == 0 && cgtoj.ang == 0)
+  //   multipole_cgto_kernel<0,0>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
+  // else if (cgtoi.ang == 0 && cgtoj.ang == 1)
+  //   multipole_cgto_kernel<0,1>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
+  // else if (cgtoi.ang == 0 && cgtoj.ang == 2)
+  //   multipole_cgto_kernel<0,2>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
+  // else if (cgtoi.ang == 1 && cgtoj.ang == 0)
+  //   multipole_cgto_kernel<1,0>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
+  // else if (cgtoi.ang == 1 && cgtoj.ang == 1)
+  //   multipole_cgto_kernel<1,1>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
+  // else if (cgtoi.ang == 1 && cgtoj.ang == 2)
+  //   multipole_cgto_kernel<1,2>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
+  // else if (cgtoi.ang == 2 && cgtoj.ang == 0)
+  //   multipole_cgto_kernel<2,0>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
+  // else if (cgtoi.ang == 2 && cgtoj.ang == 1)
+  //   multipole_cgto_kernel<2,1>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
+  // else if (cgtoi.ang == 2 && cgtoj.ang == 2)
+  //   multipole_cgto_kernel<2,2>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
+  // else
+  //   printf("[Fatal] multipole_cgto not supported for li=%d lj=%d\n", cgtoi.ang,cgtoj.ang);
 }
 
 
@@ -809,7 +815,7 @@ get_hamiltonian_between_atoms_kernel(
           const double hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
                 h0.hscale(izp, jzp, ish, jsh) * shpoly;
 
-          multipole_cgto(
+          multipole_cgto<maxl>(
             bas.cgto(jzp, jsh), 
             bas.cgto(izp, ish), 
             r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
@@ -909,7 +915,6 @@ void get_hamiltonian_between_atoms(
 }
 
 template <size_t maxl>
-
 __global__ void 
 __launch_bounds__(MAX_THREADS_PER_BLOCK)
 get_hamiltonian_in_atoms_kernel(
@@ -960,7 +965,7 @@ get_hamiltonian_in_atoms_kernel(
         device_tensor3d_t<double> qtmpi(N,  N,  6, &qtmpi_raw[0]); 
         __syncthreads();
 
-        multipole_cgto(bas.cgto(izp, jsh), bas.cgto(izp, ish), 
+        multipole_cgto<maxl>(bas.cgto(izp, jsh), bas.cgto(izp, ish), 
           r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
         __syncthreads();
 
@@ -1222,7 +1227,12 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     total_time += milliseconds;
     cudaEventDestroy(start); cudaEventDestroy(stop);
   }
-  
+  cudaFuncAttributes attr;
+  // Get attributes of the kernel
+  CUDA_CHECK(cudaFuncGetAttributes(&attr, get_hamiltonian_between_atoms_kernel<2>));
+  // Print the total shared memory used by the kernel
+  printf("gpu_shmem %d\n", attr.sharedSizeBytes);
+
   ////////////////////////////////////////////
   // Launch kernel part II, in-atom interactions
   ////////////////////////////////////////////
