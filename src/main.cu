@@ -248,7 +248,7 @@ __device__ inline void transform1(size_t li, size_t lj, const device_tensor3d_t<
   }
   else
   {
-    printf("[Fatal] transform1 not supported for li=%d lj=%d\n", li, lj);
+    printf("[Fatal] transform1 not supported for li=%i lj=%i\n", li, lj);
     assert(false);
   }
 }
@@ -438,7 +438,7 @@ __device__ inline void multipole_3d(
 }
 
 template <size_t maxl>
-__device__ void multipole_cgto_kernel(
+__device__ void multipole_cgto(
   const cgto_type &cgtoj,
   const cgto_type &cgtoi,
   const double r2,
@@ -667,42 +667,6 @@ __device__ void multipole_cgto_kernel(
   __syncthreads();
 }
 
-template <size_t maxl>
-__device__ __noinline__ void multipole_cgto(
-  const cgto_type &cgtoj,
-  const cgto_type &cgtoi,
-  const double r2,
-  const double (&vec)[3],
-  const double intcut,
-  device_tensor2d_t<double> &overlap,
-  device_tensor3d_t<double> &dpint,
-  device_tensor3d_t<double> &qpint)
-{
-  assert(cgtoi.ang <= 2 && cgtoj.ang <= 2);
-  multipole_cgto_kernel<maxl>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  // if      (cgtoi.ang == 0 && cgtoj.ang == 0)
-  //   multipole_cgto_kernel<0,0>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  // else if (cgtoi.ang == 0 && cgtoj.ang == 1)
-  //   multipole_cgto_kernel<0,1>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  // else if (cgtoi.ang == 0 && cgtoj.ang == 2)
-  //   multipole_cgto_kernel<0,2>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  // else if (cgtoi.ang == 1 && cgtoj.ang == 0)
-  //   multipole_cgto_kernel<1,0>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  // else if (cgtoi.ang == 1 && cgtoj.ang == 1)
-  //   multipole_cgto_kernel<1,1>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  // else if (cgtoi.ang == 1 && cgtoj.ang == 2)
-  //   multipole_cgto_kernel<1,2>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  // else if (cgtoi.ang == 2 && cgtoj.ang == 0)
-  //   multipole_cgto_kernel<2,0>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  // else if (cgtoi.ang == 2 && cgtoj.ang == 1)
-  //   multipole_cgto_kernel<2,1>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  // else if (cgtoi.ang == 2 && cgtoj.ang == 2)
-  //   multipole_cgto_kernel<2,2>(cgtoj, cgtoi, r2, vec, intcut, overlap, dpint, qpint);
-  // else
-  //   printf("[Fatal] multipole_cgto not supported for li=%d lj=%d\n", cgtoi.ang,cgtoj.ang);
-}
-
-
 template <typename T>
 __device__ inline void shift_operator(
     const int iao, 
@@ -738,6 +702,7 @@ template <size_t maxl>
 __global__ void 
 __launch_bounds__(MAX_THREADS_PER_BLOCK)
 get_hamiltonian_between_atoms_kernel(
+    const __grid_constant__ int batch_size,
     const __grid_constant__ __restrict__ structure_type mol,
     const __grid_constant__ tensor2d_t<const double> trans,
     const __grid_constant__ __restrict__ adjacency_list alist,
@@ -752,8 +717,10 @@ get_hamiltonian_between_atoms_kernel(
   constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13};
   constexpr int N = msao[maxl];
 
-  for(int iat = blockIdx.x; iat < mol.nat; iat += gridDim.x)
+  for(int batch = blockIdx.x; batch < mol.nat * batch_size; batch += gridDim.x)
   {
+    const int iat = batch % mol.nat;
+
     const int izp = mol.id[iat];
     const int is = bas.ish_at[iat];
     const int inl = alist.inl[iat];
@@ -884,6 +851,8 @@ get_hamiltonian_between_atoms_kernel(
 }
 
 void get_hamiltonian_between_atoms(
+  // Batch size is not fully implemented yet. For now, this is only for feasibility testing.
+  const int batch_size,
   const structure_type mol,
   const tensor2d_t<const double> trans,
   const adjacency_list alist,
@@ -895,18 +864,18 @@ void get_hamiltonian_between_atoms(
   tensor3d_t<double> qpint,
   tensor2d_t<double> hamiltonian)
 {
-  dim3 dimGrid(mol.nat, alist.nnl.max() * bas.nsh_id.max(), bas.nsh_id.max());
+  dim3 dimGrid(batch_size * mol.nat, alist.nnl.max() * bas.nsh_id.max(), bas.nsh_id.max());
   dim3 dimBlock(MAX_THREADS_PER_BLOCK, 1, 1);
   switch(bas.maxl)
   {
     case 0: 
-      get_hamiltonian_between_atoms_kernel<0><<<dimGrid, dimBlock>>>(mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
+      get_hamiltonian_between_atoms_kernel<0><<<dimGrid, dimBlock>>>(batch_size, mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
       break;
     case 1: 
-      get_hamiltonian_between_atoms_kernel<1><<<dimGrid, dimBlock>>>(mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
+      get_hamiltonian_between_atoms_kernel<1><<<dimGrid, dimBlock>>>(batch_size, mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
       break;
     case 2:
-      get_hamiltonian_between_atoms_kernel<2><<<dimGrid, dimBlock>>>(mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
+      get_hamiltonian_between_atoms_kernel<2><<<dimGrid, dimBlock>>>(batch_size, mol, trans, alist, bas, h0, selfenergy, overlap, dpint, qpint, hamiltonian);
       break;
     default:
       printf("[Fatal] get_hamiltonian_between_atoms_kernel not supported for maxl=%d\n", bas.maxl);
@@ -1028,6 +997,7 @@ void get_hamiltonian_in_atoms(
 }
 
 extern "C" void cuda_get_hamiltonian_kernel_(
+    int batch_size,
     int nao,
     int nelem,
 
@@ -1208,6 +1178,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     cudaDeviceSynchronize();
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
     get_hamiltonian_between_atoms(
+      batch_size,
       mol,
       trans_ten,
       alist,
@@ -1223,15 +1194,15 @@ extern "C" void cuda_get_hamiltonian_kernel_(
 
     cudaEventRecord(stop); cudaEventSynchronize(stop);
     cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("gpu_between_atoms %f\n", milliseconds);
+    printf("gpu_between_atoms %f\n", milliseconds / batch_size);
     total_time += milliseconds;
     cudaEventDestroy(start); cudaEventDestroy(stop);
   }
-  cudaFuncAttributes attr;
+  // cudaFuncAttributes attr;
   // Get attributes of the kernel
-  CUDA_CHECK(cudaFuncGetAttributes(&attr, get_hamiltonian_between_atoms_kernel<2>));
+  // CUDA_CHECK(cudaFuncGetAttributes(&attr, get_hamiltonian_between_atoms_kernel<2>));
   // Print the total shared memory used by the kernel
-  printf("gpu_shmem %d\n", attr.sharedSizeBytes);
+  // printf("gpu_shmem %d\n", attr.sharedSizeBytes);
 
   ////////////////////////////////////////////
   // Launch kernel part II, in-atom interactions
@@ -1239,16 +1210,16 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   {
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
     get_hamiltonian_in_atoms(
-        mol,
-        trans_ten,
-        alist,
-        bas,
-        h0,
-        selfenergy_ten,
-        overlap_ten,
-        dpint_ten,
-        qpint_ten,
-        hamiltonian_ten);
+      mol,
+      trans_ten,
+      alist,
+      bas,
+      h0,
+      selfenergy_ten,
+      overlap_ten,
+      dpint_ten,
+      qpint_ten,
+      hamiltonian_ten);
     CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaGetLastError());
     cudaEventRecord(stop); cudaEventSynchronize(stop);
