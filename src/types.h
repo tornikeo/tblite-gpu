@@ -268,7 +268,7 @@ void printstruct(const tb_hamiltonian &h0)
     printf("\n");
   }
   printf("  hscale: ");
-  h0.hscale.print();
+  h0.hscale.print(); 
   printf("  shpoly: ");
   for (int i = 0; i < h0.shpoly.dim1; ++i)
   {

@@ -15,8 +15,7 @@
 #define s3_4 (s3 / 2) // sqrt(3)/2
 #define sqrtpi3 5.56832799683 // sqrt(pi)**3
 
-template <typename T>
-__device__ inline void transform0(size_t li, size_t lj, const device_tensor2d_t<T> &cart,  device_tensor2d_t<T> &sphr)
+__device__ inline void transform0(const int li, const int lj, const device_tensor2d_t<double> &cart,  device_tensor2d_t<double> &sphr)
 {
   /* sphr is a larger array. It contains the max size that an integral might need
   so iterate over smaller cart dims instead*/
@@ -24,8 +23,7 @@ __device__ inline void transform0(size_t li, size_t lj, const device_tensor2d_t<
   {
     // for(int i = 0; i < cart.dim1; i++)
     //   for(int j = 0; j < cart.dim2; ++j)
-    const auto total = cart.dim1 * cart.dim2;
-    for(int t = threadIdx.x; t < total; t+= blockDim.x)
+    for(int t = threadIdx.x; t < cart.dim1 * cart.dim2; t+= blockDim.x)
     {
       const int i = t / cart.dim2; 
       const int j = t % cart.dim2; 
@@ -125,13 +123,13 @@ __device__ inline void transform0(size_t li, size_t lj, const device_tensor2d_t<
   } 
   else 
   {
-    printf("[Fatal] transform0 not supported for li=%d lj=%d\n", li, lj);
-    assert(false);
+    // printf("[Fatal] transform0 not supported for li=%d lj=%d\n", li, lj);
+    // assert(false);
   }
 }
 
-template <typename T>
-__device__ inline void transform1(size_t li, size_t lj, const device_tensor3d_t<T> &cart, device_tensor3d_t<T> &sphr)
+template <typename dt2, typename dt3>
+__device__ inline void transform1(const int li, const int lj, const dt2 &cart, dt3 &sphr)
 {
   if (li <= 1 && lj <= 1) /* HOT PATH */
   {
@@ -437,7 +435,7 @@ __device__ inline void multipole_3d(
   q3d[5] = v1d[0][0] * v1d[1][0] * v1d[2][2];
 }
 
-template <size_t maxl>
+template <size_t maxl, typename static_device_tensor3_3, typename static_device_tensor3_6>
 __device__ void multipole_cgto(
   const cgto_type &cgtoj,
   const cgto_type &cgtoi,
@@ -445,9 +443,12 @@ __device__ void multipole_cgto(
   const double (&vec)[3],
   const double intcut,
   device_tensor2d_t<double> &overlap,
-  device_tensor3d_t<double> &dpint,
-  device_tensor3d_t<double> &qpint)
+  static_device_tensor3_3 &dpint,
+  static_device_tensor3_6 &qpint)
 {
+  /////////////////////////////////////////
+  // THIS SECTION IS SINGLE THREAD BLOCK
+  /////////////////////////////////////////
   constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13}; 
   constexpr int mlao[] = {1, 3, 6, 10, 15, 21, 28};
   constexpr int lmap[] = {0, 1, 4, 10, 20, 35, 56};
@@ -638,9 +639,9 @@ __device__ void multipole_cgto(
     __syncthreads();
   }
   
-  transform0<double>(angi, angj, s3d, overlap);
-  transform1<double>(angi, angj, d3d, dpint);
-  transform1<double>(angi, angj, q3d, qpint);
+  transform0(angi, angj, s3d, overlap);
+  transform1(angi, angj, d3d, dpint);
+  transform1(angi, angj, q3d, qpint);
   __syncthreads();
 
   {
@@ -667,14 +668,14 @@ __device__ void multipole_cgto(
   __syncthreads();
 }
 
-template <typename T>
+template <typename T, typename static_device_tensor3_3, typename static_device_tensor3_6>
 __device__ inline void shift_operator(
     const int iao, 
     const int jao,
     const T * __restrict__ vec,
     const device_tensor2d_t<T> &s,
-    const device_tensor3d_t<T> &di,
-    const device_tensor3d_t<T> &qi,
+    const static_device_tensor3_3 &di,
+    const static_device_tensor3_6 &qi,
     T (&dj)[3],
     T (&qj)[6])
 {
@@ -688,8 +689,8 @@ __device__ inline void shift_operator(
   qj[1] = vec[0] * di(iao, jao, 1) + vec[1] * di(iao, jao, 0) + vec[0] * vec[1] * s(iao, jao);
   qj[3] = vec[0] * di(iao, jao, 2) + vec[2] * di(iao, jao, 0) + vec[0] * vec[2] * s(iao, jao);
   qj[4] = vec[1] * di(iao, jao, 2) + vec[2] * di(iao, jao, 1) + vec[1] * vec[2] * s(iao, jao);
-
-  const auto tr = 0.5 * (qj[0] + qj[2] + qj[5]);
+  
+  const auto tr = 0.5 * (qj[0] + qj[2] + qj[5]); 
   qj[0] = qi(iao, jao, 0) + 1.5 * qj[0] - tr;
   qj[1] = qi(iao, jao, 1) + 1.5 * qj[1];
   qj[2] = qi(iao, jao, 2) + 1.5 * qj[2] - tr;
@@ -760,19 +761,19 @@ get_hamiltonian_between_atoms_kernel(
           const double rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
           
           /* Make stmp, dtmpi and qtmpi integral, shared arrays */
-          __shared__ double stmp_raw [N * N];
-          __shared__ double dtmpj_raw[N * N * 3];
-          __shared__ double qtmpj_raw[N * N * 6];
+          __shared__ double stmp_ [N * N];
+          __shared__ double dtmpi_[N * N * 3];
+          __shared__ double qtmpi_[N * N * 6];
           for(int k = threadIdx.x; k < N * N; k+=blockDim.x)
-            stmp_raw[k] = 0.0;
+            stmp_[k] = 0.0;
           for(int k = threadIdx.x; k < N * N * 3; k+=blockDim.x)
-            dtmpj_raw[k] = 0.0;
-          for(int k = threadIdx.x; k < N * N * 6; k+=blockDim.x)  
-            qtmpj_raw[k] = 0.0;
+            dtmpi_[k] = 0.0;
+          for(int k = threadIdx.x; k < N * N * 6; k+=blockDim.x)
+            qtmpi_[k] = 0.0;
           __syncthreads();
-          device_tensor2d_t<double> stmp (msao[bas.maxl], msao[bas.maxl],    &stmp_raw[0]); 
-          device_tensor3d_t<double> dtmpi(msao[bas.maxl], msao[bas.maxl], 3, &dtmpj_raw[0]); 
-          device_tensor3d_t<double> qtmpi(msao[bas.maxl], msao[bas.maxl], 6, &qtmpj_raw[0]); 
+          device_tensor2d_t<double>                            stmp (msao[maxl], msao[maxl],    &stmp_[0]);
+          static_device_tensor3d_t<double, msao[maxl], msao[maxl], 3> dtmpi(&dtmpi_[0]);
+          static_device_tensor3d_t<double, msao[maxl], msao[maxl], 6> qtmpi(&qtmpi_[0]);
 
           /* Read element-specific parameters from global mem */
           const int njao = msao[bas.cgto(jzp, jsh).ang];
@@ -917,7 +918,7 @@ get_hamiltonian_in_atoms_kernel(
         int jj = bas.iao_sh[is + jsh];
         const double vec[3] = {0.0};
         const double r2 = 0.0;
-        const double rr = 0.0; //sqrt(sqrt(r2) / (h0.rad[izp] + h0.rad[izp]));
+        /* const double rr = 0.0; */ //sqrt(sqrt(r2) / (h0.rad[izp] + h0.rad[izp]));
         
         /* Make stmp, dtmpi and qtmpi integral, shared arrays */
         __shared__ double stmp_raw [N * N];
@@ -930,8 +931,8 @@ get_hamiltonian_in_atoms_kernel(
         for(int k = threadIdx.x; k < N * N * 6; k+=blockDim.x)  
           qtmpi_raw[k] = 0.0;
         device_tensor2d_t<double> stmp (N,  N,     &stmp_raw[0]); 
-        device_tensor3d_t<double> dtmpi(N,  N,  3, &dtmpi_raw[0]); 
-        device_tensor3d_t<double> qtmpi(N,  N,  6, &qtmpi_raw[0]); 
+        static_device_tensor3d_t<double, N,  N,  3> dtmpi(&dtmpi_raw[0]); 
+        static_device_tensor3d_t<double, N,  N,  6> qtmpi(&qtmpi_raw[0]); 
         __syncthreads();
 
         multipole_cgto<maxl>(bas.cgto(izp, jsh), bas.cgto(izp, ish), 

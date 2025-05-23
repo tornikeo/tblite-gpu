@@ -283,6 +283,7 @@ public:
 
   __host__ __device__ inline void print() const
   {
+#ifndef NDEBUG
     printf("(%i, %i, %i, %i) ", dim1, dim2, dim3, dim4);
     printf("[");
     for (int i = 0; i < dim1; ++i)
@@ -305,6 +306,7 @@ public:
       printf("]\n");
     }
     printf("]\n");
+#endif /* NDEBUG */
   }
 };
 #endif
