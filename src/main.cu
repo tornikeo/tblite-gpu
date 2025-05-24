@@ -130,6 +130,122 @@ __device__ inline void transform0(size_t li, size_t lj, const device_tensor2d_t<
   }
 }
 
+template <typename T, int D>
+__device__ inline void transform0(size_t li, size_t lj, const device_tensor2d_t<T> &cart,  device_tensor2d_fixed_t<T, D, D> &sphr)
+{
+  /* sphr is a larger array. It contains the max size that an integral might need
+  so iterate over smaller cart dims instead*/
+  if (li <= 1 && lj <= 1)
+  {
+    // for(int i = 0; i < cart.dim1; i++)
+    //   for(int j = 0; j < cart.dim2; ++j)
+    const auto total = cart.dim1 * cart.dim2;
+    for(int t = threadIdx.x; t < total; t+= blockDim.x)
+    {
+      const int i = t / cart.dim2; 
+      const int j = t % cart.dim2; 
+      sphr(i,j) = cart(i,j);
+    }
+  } 
+  else if (li <= 1 && lj == 2)
+  {
+    for(int i = threadIdx.x + 1; i <= cart.dim1; i += blockDim.x)
+    {
+      // sphr = matmul(dtrafo, cart)
+      // sphr(1, :) = cart(3, :) - 0.5_wp * (cart(1, :) + cart(2, :))
+        sphr(1, i, 'f') = cart(3, i, 'f') - 0.5 * (cart(1, i, 'f') + cart(2, i, 'f'));
+      // sphr(2, :) = s3 * cart(5, :)
+        sphr(2, i, 'f') = s3 * cart(5, i, 'f');
+      // sphr(3, :) = s3 * cart(6, :)
+        sphr(3, i, 'f') = s3 * cart(6, i, 'f');
+      // sphr(4, :) = s3_4 * (cart(1, :) - cart(2, :))
+        sphr(4, i, 'f') = s3_4 * (cart(1, i, 'f') - cart(2, i, 'f'));
+      // sphr(5, :) = s3 * cart(4, :)
+        sphr(5, i, 'f') = s3 * cart(4, i, 'f');
+    }
+  } 
+  else if (li == 2 && lj <= 1) 
+  {    
+    for(int i = threadIdx.x + 1; i <= cart.dim2; i += blockDim.x)
+    {
+    // sphr(:, 1) = cart(:, 3) - 0.5_wp * (cart(:, 1) + cart(:, 2))
+      sphr(i, 1, 'f') = cart(i, 3, 'f') - 0.5 * (cart(i, 1, 'f') + cart(i, 2, 'f'));
+    // sphr(:, 2) = s3 * cart(:, 5)
+      sphr(i, 2, 'f') = s3 * cart(i, 5, 'f');
+    // sphr(:, 3) = s3 * cart(:, 6)
+      sphr(i, 3, 'f') = s3 * cart(i, 6, 'f');
+    // sphr(:, 4) = s3_4 * (cart(:, 1) - cart(:, 2))
+      sphr(i, 4, 'f') = s3_4 * (cart(i, 1, 'f') - cart(i, 2, 'f'));
+    // sphr(:, 5) = s3 * cart(:, 4)
+      sphr(i, 5, 'f') = s3 * cart(i, 4, 'f');
+    }
+  } 
+  else if (li == 2 && lj == 2)
+  {
+    /* REMEMBER 
+      i,j -> i-1, j-1, due to Fortran indexing
+    */
+    // sphr(1, 1) = cart(3, 3) &
+    //   & - 0.5_wp * (cart(3, 1) + cart(3, 2) + cart(1, 3) + cart(2, 3)) &
+    //   & + 0.25_wp * (cart(1, 1) + cart(1, 2) + cart(2, 1) + cart(2, 2))
+    if(threadIdx.x == 0)
+    {
+    sphr(1,1,'f') = cart(3,3,'f')
+      - 0.5 * (cart(3,1,'f') + cart(3,2,'f') + cart(1,3,'f') + cart(2,3,'f'))
+      + 0.25 * (cart(1,1,'f') + cart(1,2,'f') + cart(2,1,'f') + cart(2,2,'f'));
+    // sphr([2, 3, 5], 1) = s3 * cart([5, 6, 4], 3) &
+    //   & - s3_4 * (cart([5, 6, 4], 1) + cart([5, 6, 4], 2))
+    sphr(2, 1,'f') = s3 * cart(5, 3,'f') - s3_4 * (cart(5, 1,'f') + cart(5, 2,'f'));
+    sphr(3, 1,'f') = s3 * cart(6, 3,'f') - s3_4 * (cart(6, 1,'f') + cart(6, 2,'f'));
+    sphr(5, 1,'f') = s3 * cart(4, 3,'f') - s3_4 * (cart(4, 1,'f') + cart(4, 2,'f'));
+    // sphr(4, 1) = s3_4 * (cart(1, 3) - cart(2, 3)) &
+    //   & - s3 * 0.25_wp * (cart(1, 1) - cart(2, 1) + cart(1, 2) - cart(2, 2))
+    sphr(4,1,'f') = s3_4 * (cart(1,3,'f') - cart(2,3,'f'))
+      - s3 * 0.25 * (cart(1,1,'f') - cart(2,1,'f') + cart(1,2,'f') - cart(2,2,'f'));
+    // sphr(1, 2) = s3 * cart(3, 5) - s3_4 * (cart(1, 5) + cart(2, 5))
+    sphr(1,2,'f') = s3 * cart(3,5,'f') - s3_4 * (cart(1,5,'f') + cart(2,5,'f'));
+    // sphr([2, 3, 5], 2) = 3 * cart([5, 6, 4], 5)
+    sphr(2, 2,'f') = 3 * cart(5, 5,'f');
+    sphr(3, 2,'f') = 3 * cart(6, 5,'f');
+    sphr(5, 2,'f') = 3 * cart(4, 5,'f');
+    // sphr(4, 2) = 1.5_wp * (cart(1, 5) - cart(2, 5))
+    sphr(4,2,'f') = 1.5 * (cart(1,5,'f') - cart(2,5,'f'));
+    // sphr(1, 3) = s3 * cart(3, 6) - s3_4 * (cart(1, 6) + cart(2, 6))
+    sphr(1,3,'f') = s3 * cart(3,6,'f') - s3_4 * (cart(1,6,'f') + cart(2,6,'f'));
+    // sphr([2, 3, 5], 3) = 3 * cart([5, 6, 4], 6)
+    sphr(2, 3,'f') = 3 * cart(5, 6,'f');
+    sphr(3, 3,'f') = 3 * cart(6, 6,'f');
+    sphr(5, 3,'f') = 3 * cart(4, 6,'f');
+    // sphr(4, 3) = 1.5_wp * (cart(1, 6) - cart(2, 6))
+    sphr(4,3,'f') = 1.5 * (cart(1,6,'f') - cart(2,6,'f'));
+    // sphr(1, 4) = s3_4 * (cart(3, 1) - cart(3, 2)) &
+    //   & - s3 * 0.25_wp * (cart(1, 1) - cart(1, 2) + cart(2, 1) - cart(2, 2))
+    sphr(1,4,'f') = s3_4 * (cart(3,1,'f') - cart(3,2,'f'))
+      - s3 * 0.25 * (cart(1,1,'f') - cart(1,2,'f') + cart(2,1,'f') - cart(2,2,'f'));
+    // sphr([2, 3, 5], 4) = 1.5_wp * (cart([5, 6, 4], 1) - cart([5, 6, 4], 2))
+    sphr(2, 4,'f') = 1.5 * (cart(5, 1,'f') - cart(5, 2,'f'));
+    sphr(3, 4,'f') = 1.5 * (cart(6, 1,'f') - cart(6, 2,'f'));
+    sphr(5, 4,'f') = 1.5 * (cart(4, 1,'f') - cart(4, 2,'f'));
+    // sphr(4, 4) = 0.75_wp * (cart(1, 1) - cart(2, 1) - cart(1, 2) + cart(2, 2))
+    sphr(4,4,'f') = 0.75 * (cart(1,1,'f') - cart(2,1,'f') - cart(1,2,'f') + cart(2,2,'f'));
+    // sphr(1, 5) = s3 * cart(3, 4) - s3_4 * (cart(1, 4) + cart(2, 4))
+    sphr(1,5,'f') = s3 * cart(3,4,'f') - s3_4 * (cart(1,4,'f') + cart(2,4,'f'));
+    // sphr([2, 3, 5], 5) = 3 * cart([5, 6, 4], 4)
+    sphr(2, 5,'f') = 3 * cart(5, 4,'f');
+    sphr(3, 5,'f') = 3 * cart(6, 4,'f');
+    sphr(5, 5,'f') = 3 * cart(4, 4,'f');
+    // sphr(4, 5) = 1.5_wp * (cart(1, 4) - cart(2, 4))
+    sphr(4,5,'f') = 1.5 * (cart(1,4,'f') - cart(2,4,'f'));
+    }
+  } 
+  else 
+  {
+    printf("[Fatal] transform0 not supported for li=%d lj=%d\n", li, lj);
+    assert(false);
+  }
+}
+
+
 template <typename T>
 __device__ inline void transform1(size_t li, size_t lj, const device_tensor3d_t<T> &cart, device_tensor3d_t<T> &sphr)
 {
@@ -377,8 +493,8 @@ __device__ inline void transform1(size_t li, size_t lj, const device_tensor3d_t<
 }
 
 
-
-__device__ inline void horizontal_shift(const double ae, const int l, double (&cfs)[MAXL])
+template <typename T, typename T2>
+__device__ inline void horizontal_shift(const T ae, const int l, T2 * __restrict__ cfs)
 {
   switch (l)
   {
@@ -403,17 +519,18 @@ __device__ inline void horizontal_shift(const double ae, const int l, double (&c
     cfs[3] += 4 * ae * cfs[4];
     break;
   default:
-    printf("[Fatal] horizontal_shift not supported for l=%d\n", l);
+    printf("[Fatal] horizontal_shift not supported for l=%i\n", l);
     assert(false);
     return;
   }
 }
 
+template <typename T, typename T2, typename T3>
 __device__ inline void form_product(
-  const double * __restrict__ a /*[MAXL]*/,
-  const double * __restrict__ b /*[MAXL]*/,
+  const T * __restrict__ a /*[MAXL]*/,
+  const T2 * __restrict__ b /*[MAXL]*/,
   const int &la, const int &lb,
-  double (&d)[MAXL2])
+  T3 (&d)[MAXL2])
 {
   if (la >= 4 || lb >= 4) goto label_40;
   if (la >= 3 || lb >= 3) goto label_30;
@@ -526,19 +643,26 @@ __device__ inline void multipole_3d(
   double (&d3d)[3],
   double (&q3d)[6])
 {
-  double v1d[3][3] = {0.0};
+  float v1d[3][3] = {0.0};
 
+  #pragma unroll
   for(int k = 0; k < 3; ++k)
   {
-    double vi[MAXL] = {0.0};
-    double vj[MAXL] = {0.0};
-    double vv[MAXL2] = {0.0};
-    
+    float vi[MAXL] = {0.0};
+    float vj[MAXL] = {0.0};
+    float vv[MAXL2] = {0.0};
+    // #pragma unroll
+    // for(int i = 0; i <= MAXL; ++i)
+    // {
+    //   vi[i] += li[k] == i;
+    //   vj[i] += lj[k] == i;
+    // }
     vi[li[k]] = 1.0;
     vj[lj[k]] = 1.0;
     horizontal_shift(rpi[k], li[k], vi);
     horizontal_shift(rpj[k], lj[k], vj);
     form_product(vi, vj, li[k], lj[k], vv);
+    
     for (int l = 0; l <= li[k] + lj[k]; ++l)
     {
       assert(l < MAXL2 - 1);
@@ -568,7 +692,7 @@ __device__ void multipole_cgto(
   const double r2,
   const double (&vec)[3],
   const double intcut,
-  device_tensor2d_t<double> &overlap,
+  device_tensor2d_fixed_t<double, D, D> &overlap,
   device_tensor3d_fixed_t<double, D, D, 3> &dpint,
   device_tensor3d_fixed_t<double, D, D, 6> &qpint)
 {
@@ -595,8 +719,8 @@ __device__ void multipole_cgto(
     {0,2,1,},
     {1,0,2,},
     {0,1,2,},
-    {1,1,1,},
-    {4,0,0,} //,
+    {1,1,1,}//,
+    // {4,0,0,},
     // {0,4,0,},
     // {0,0,4,},
     // {3,1,0,},
@@ -901,10 +1025,13 @@ __device__ void multipole_cgto(
   __shared__ double s3d_raw[N * M]; //= {0.0};
   __shared__ double d3d_raw[N * M * 3]; //= {0.0};
   __shared__ double q3d_raw[N * M * 6]; //= {0.0};
+  #pragma unroll
   for (int i = threadIdx.x; i < N * M; i += blockDim.x)
     s3d_raw[i] = 0.0;
+  #pragma unroll
   for (int i = threadIdx.x; i < N * M * 3; i += blockDim.x)
     d3d_raw[i] = 0.0;
+  #pragma unroll
   for (int i = threadIdx.x; i < N * M * 6; i += blockDim.x)
     q3d_raw[i] = 0.0;
   device_tensor2d_t<double> s3d(mlao[angi], mlao[angj], &s3d_raw[0]); 
@@ -956,7 +1083,7 @@ __device__ void multipole_cgto(
           rpj[k] = -vec[k] * jalpha[jp] * oab;
         }
         #pragma unroll
-        for (int l = 0; l <= angi + angj + 2; ++l)
+        for (int l = 0; l <= maxl * 2 + 2; ++l)
           s1d[l] = overlap_1d(l, eab);
         const double cc = icoeff[ip] * jcoeff[jp] * pre;
 
@@ -1058,7 +1185,7 @@ __device__ inline void shift_operator(
     const int iao, 
     const int jao,
     const T * __restrict__ vec,
-    const device_tensor2d_t<T> &s,
+    const device_tensor2d_fixed_t<T, D, D> &s,
     const device_tensor3d_fixed_t<T, D, D, 3> &di,
     const device_tensor3d_fixed_t<T, D, D, 6> &qi,
     T (&dj)[3],
@@ -1114,6 +1241,7 @@ get_hamiltonian_between_atoms_kernel(
       const int jat = alist.nlat[img + inl];
       const int izp = mol.id[iat];
       const int jzp = mol.id[jat];
+      const double total_radii = h0.rad[jzp] + h0.rad[izp];
       const auto total_iters = bas.nsh_id[izp] * bas.nsh_id[jzp];
       for (int total = blockIdx.z; total < total_iters; total += gridDim.z)
       // for (int ish = blockIdx.z; ish < bas.nsh_id[izp]; ish += gridDim.z)
@@ -1134,6 +1262,7 @@ get_hamiltonian_between_atoms_kernel(
           const int jj = bas.iao_sh[js + jsh];
           
           __shared__ double vec[3];   // = {0.0};
+          __shared__ double r2, rr;
           double dtmpj[3] = {0.0};
           double qtmpj[6] = {0.0};
           
@@ -1141,9 +1270,12 @@ get_hamiltonian_between_atoms_kernel(
             vec[k] = mol.xyz(iat, k) - mol.xyz(jat, k) - trans(itr, k);
           __syncthreads();
           
-          const double r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
-          const double rr = sqrt(sqrt(r2) / (h0.rad[jzp] + h0.rad[izp]));
-          
+          if (threadIdx.x == 0)
+            r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
+          if (threadIdx.x == 0) 
+            rr = sqrt(sqrt(r2) / total_radii); //(h0_jrad + h0_irad));
+          __syncthreads();
+
           /* Make stmp, dtmpi and qtmpi integral, shared arrays */
           __shared__ double stmp_ [N * N];
           __shared__ double dtmpi_[N * N * 3];
@@ -1155,7 +1287,7 @@ get_hamiltonian_between_atoms_kernel(
           for(int k = threadIdx.x; k < N * N * 6; k+=blockDim.x)  
             qtmpi_[k] = 0.0;
           __syncthreads();
-          device_tensor2d_t<double> stmp (msao[maxl], msao[maxl],    &stmp_[0]); 
+          device_tensor2d_fixed_t<double, msao[maxl], msao[maxl]   > stmp (&stmp_[0]); 
           device_tensor3d_fixed_t<double, msao[maxl], msao[maxl], 3> dtmpi(&dtmpi_[0]); 
           device_tensor3d_fixed_t<double, msao[maxl], msao[maxl], 6> qtmpi(&qtmpi_[0]); 
 
@@ -1189,43 +1321,43 @@ get_hamiltonian_between_atoms_kernel(
               #pragma unroll
               for (int k = 0; k < 3; ++k)
               {
-                atomicAdd(&dpint(ii + iao, jj + jao, k), dtmpi(iao, jao, k));
-                // dpint(ii + iao, jj + jao, k) += dtmpi(iao, jao, k);
+                // atomicAdd(&dpint(ii + iao, jj + jao, k), dtmpi(iao, jao, k));
+                dpint(ii + iao, jj + jao, k) += dtmpi(iao, jao, k);
               }
 
               #pragma unroll
               for (int k = 0; k < 6; ++k)
               {
-                atomicAdd(&qpint(ii + iao, jj + jao, k), qtmpi(iao, jao, k));
-                // qpint(ii + iao, jj + jao, k) += qtmpi(iao, jao, k);
+                // atomicAdd(&qpint(ii + iao, jj + jao, k), qtmpi(iao, jao, k));
+                qpint(ii + iao, jj + jao, k) += qtmpi(iao, jao, k);
               }
 
-              atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
-              // hamiltonian(ii + iao, jj + jao) += stmp(iao, jao) * hij;
+              // atomicAdd(&hamiltonian(ii + iao, jj + jao), stmp(iao, jao) * hij);
+              hamiltonian(ii + iao, jj + jao) += stmp(iao, jao) * hij;
 
               /* TODO: This is a symmetrification of these matrices. Maybe this should be
               done in the outside this loop? */
               if (iat != jat) // 2200ms vs 2300ms
               {
-                atomicAdd(&overlap(jj + jao, ii + iao), stmp(iao, jao));
-                // overlap(jj + jao, ii + iao) += stmp(iao, jao);
+                // atomicAdd(&overlap(jj + jao, ii + iao), stmp(iao, jao));
+                overlap(jj + jao, ii + iao) += stmp(iao, jao);
 
                 #pragma unroll
                 for (int k = 0; k < 3; ++k)
                 {
-                  atomicAdd(&dpint(jj + jao, ii + iao,  k), dtmpj[k]);
-                  // dpint(jj + jao, ii + iao, k) += dtmpj[k];
+                  // atomicAdd(&dpint(jj + jao, ii + iao,  k), dtmpj[k]);
+                  dpint(jj + jao, ii + iao, k) += dtmpj[k];
                 }
 
                 #pragma unroll
                 for (int k = 0; k < 6; ++k)
                 {
-                  atomicAdd(&qpint(jj + jao, ii + iao,  k), qtmpj[k]);
-                  // qpint(jj + jao, ii + iao, k) += qtmpj[k];
+                  // atomicAdd(&qpint(jj + jao, ii + iao,  k), qtmpj[k]);
+                  qpint(jj + jao, ii + iao, k) += qtmpj[k];
                 }
                 
-                atomicAdd(&hamiltonian(jj + jao, ii + iao), stmp(iao, jao) * hij);
-                // hamiltonian(jj + jao, ii + iao) += stmp(iao, jao) * hij;
+                // atomicAdd(&hamiltonian(jj + jao, ii + iao), stmp(iao, jao) * hij);
+                hamiltonian(jj + jao, ii + iao) += stmp(iao, jao) * hij;
               }
             }
           }
