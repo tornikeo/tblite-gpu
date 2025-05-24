@@ -24,14 +24,12 @@ build_args_common = [
   # '-gencode=arch=compute_61,code=sm_61',  # Pascal architecture (e.g., GTX 1080) (unsupported due to __grid_constant__ not being available
   # '-gencode=arch=compute_60,code=sm_60',  # Pascal architecture (e.g., Tesla P100)
   '-m64',
-  '-O3',
-  # '--ptxas-options=-v',
+  '--ptxas-options=-v',
   # '--use_fast_math',
   # '--ftz=true',
   # '--prec-div=false',
   # '--prec-sqrt=false',
   # '--default-stream=per-thread',
-  # '--maxrregcount=128' # due to double precision use
 ]
 
 install = not (meson.is_subproject() and get_option('default_library') == 'static')
