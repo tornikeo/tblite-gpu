@@ -1,6 +1,6 @@
 #define NDEBUG
 
-#define MAX_THREADS_PER_BLOCK 36
+#define MAX_THREADS_PER_BLOCK 32
 #include <cassert>
 #include <cstdio>
 #include <cuda.h>
@@ -1228,7 +1228,7 @@ get_hamiltonian_between_atoms_kernel(
     tensor3d_t<double> qpint,
     tensor2d_t<double> hamiltonian)
 {
-  constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13};
+  constexpr int msao[] = {1, 3, 5, /*7, 9, 11, 13*/};
   constexpr int N = msao[maxl];
 
   for(int batch = blockIdx.x; batch < mol.nat * batch_size; batch += gridDim.x)
@@ -1244,7 +1244,6 @@ get_hamiltonian_between_atoms_kernel(
       const int jzp = mol.id[jat];
       const double total_radii = h0.rad[jzp] + h0.rad[izp];
       const auto total_iters = bas.nsh_id[izp] * bas.nsh_id[jzp];
-
       for (int total = blockIdx.z; total < total_iters; total += gridDim.z)
       // for (int ish = blockIdx.z; ish < bas.nsh_id[izp]; ish += gridDim.z)
       {
@@ -1287,7 +1286,8 @@ get_hamiltonian_between_atoms_kernel(
 
           const double shpoly = (1.0 + ishpoly * rr) *
             (1.0 + jshpoly * rr);
-          const double hij = 0.5 * scaled_selfenergy * shpoly;
+          const double hij = 0.5 * scaled_selfenergy * (1.0 + ishpoly * rr) *
+            (1.0 + jshpoly * rr);
 
           /* Make stmp, dtmpi and qtmpi integral, shared arrays */
           __shared__ double stmp_ [N * N];
