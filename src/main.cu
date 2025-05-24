@@ -1015,23 +1015,22 @@ __device__ void multipole_cgto(
     // {2,2,2,},
   };
   constexpr size_t N = mlao[maxl];
-  constexpr size_t M = mlao[maxl];
 
   const int angi = cgtoi.ang;
   const int angj = cgtoj.ang;
 
   /* Initialize spherical integral matrices in shared memory*/
-  __shared__ double s3d_raw[N * M]; //= {0.0};
-  __shared__ double d3d_raw[N * M * 3]; //= {0.0};
-  __shared__ double q3d_raw[N * M * 6]; //= {0.0};
+  __shared__ double s3d_raw[N * N]; //= {0.0};
+  __shared__ double d3d_raw[N * N * 3]; //= {0.0};
+  __shared__ double q3d_raw[N * N * 6]; //= {0.0};
   #pragma unroll
-  for (int i = threadIdx.x; i < N * M; i += blockDim.x)
+  for (int i = threadIdx.x; i < N * N; i += blockDim.x)
     s3d_raw[i] = 0.0;
   #pragma unroll
-  for (int i = threadIdx.x; i < N * M * 3; i += blockDim.x)
+  for (int i = threadIdx.x; i < N * N * 3; i += blockDim.x)
     d3d_raw[i] = 0.0;
   #pragma unroll
-  for (int i = threadIdx.x; i < N * M * 6; i += blockDim.x)
+  for (int i = threadIdx.x; i < N * N * 6; i += blockDim.x)
     q3d_raw[i] = 0.0;
   device_tensor2d_t<double> s3d(mlao[angi], mlao[angj],    &s3d_raw[0]); 
   device_tensor3d_t<double> d3d(mlao[angi], mlao[angj], 3, &d3d_raw[0]); 
@@ -1243,6 +1242,7 @@ get_hamiltonian_between_atoms_kernel(
       const int izp = mol.id[iat];
       const int jzp = mol.id[jat];
       const double total_radii = h0.rad[jzp] + h0.rad[izp];
+      const double intcut = bas.intcut;
       const auto total_iters = bas.nsh_id[izp] * bas.nsh_id[jzp];
       for (int total = blockIdx.z; total < total_iters; total += gridDim.z)
       // for (int ish = blockIdx.z; ish < bas.nsh_id[izp]; ish += gridDim.z)
@@ -1254,7 +1254,6 @@ get_hamiltonian_between_atoms_kernel(
           /////////////////////////////////////////
           const int ish = total / bas.nsh_id[jzp];
           const int jsh = total % bas.nsh_id[jzp];
-          
           const double ishpoly = h0.shpoly(izp, ish);
           const double jshpoly = h0.shpoly(jzp, jsh);
           const int is = bas.ish_at[iat];
@@ -1311,7 +1310,7 @@ get_hamiltonian_between_atoms_kernel(
           multipole_cgto<maxl, msao[maxl]>(
             bas.cgto(jzp, jsh), 
             bas.cgto(izp, ish), 
-            r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
+            r2, vec, intcut, stmp, dtmpi, qtmpi);
           __syncthreads();
           
           const int total = niao * njao;
@@ -1390,7 +1389,7 @@ void get_hamiltonian_between_atoms(
   tensor3d_t<double> qpint,
   tensor2d_t<double> hamiltonian)
 {
-  dim3 dimGrid(batch_size * mol.nat, alist.nnl.max() * bas.nsh_id.max(), bas.nsh_id.max());
+  dim3 dimGrid(batch_size * mol.nat, alist.nnl.max(), bas.nsh_id.max() * bas.nsh_id.max());
   dim3 dimBlock(MAX_THREADS_PER_BLOCK, 1, 1);
   switch(bas.maxl)
   {
