@@ -786,40 +786,24 @@ __device__ void multipole_cgto(
     // {2,2,2,},
   };
   constexpr size_t N = mlao[maxl];
-  constexpr size_t M = mlao[maxl];
 
   const int angi = cgtoi.ang;
   const int angj = cgtoj.ang;
 
   /* Initialize spherical integral matrices in shared memory*/
-  __shared__ double s3d_raw[N * M]; //= {0.0};
-  __shared__ double d3d_raw[N * M * 3]; //= {0.0};
-  __shared__ double q3d_raw[N * M * 6]; //= {0.0};
-  for (int i = threadIdx.x; i < N * M; i += blockDim.x)
-    s3d_raw[i] = 0.0;
-  for (int i = threadIdx.x; i < N * M * 3; i += blockDim.x)
-    d3d_raw[i] = 0.0;
-  for (int i = threadIdx.x; i < N * M * 6; i += blockDim.x)
-    q3d_raw[i] = 0.0;
-  device_tensor2d_t<double> s3d(mlao[angi], mlao[angj], &s3d_raw[0]); 
-  device_tensor3d_t<double> d3d(mlao[angi], mlao[angj], 3, &d3d_raw[0]); 
-  device_tensor3d_t<double> q3d(mlao[angi], mlao[angj], 6, &q3d_raw[0]); 
-
-  /* Copy alpha and coeff for cgto, into shared memory */
-  __shared__ double ialpha[MAXG];
-  __shared__ double icoeff[MAXG];
-  __shared__ double jalpha[MAXG];
-  __shared__ double jcoeff[MAXG];
-  #pragma unroll
-  for(int i = threadIdx.x; i < MAXG; i+=blockDim.x)
-  {
-    ialpha[i] = cgtoi.alpha[i];
-    icoeff[i] = cgtoi.coeff[i];
-    jalpha[i] = cgtoj.alpha[i];
-    jcoeff[i] = cgtoj.coeff[i];
-  }
+  __shared__ double s3d_[N * N]; //= {0.0};
+  __shared__ double d3d_[N * N * 3]; //= {0.0};
+  __shared__ double q3d_[N * N * 6]; //= {0.0};
+  for (int i = threadIdx.x; i < N * N; i += blockDim.x)
+    s3d_[i] = 0.0;
+  for (int i = threadIdx.x; i < N * N * 3; i += blockDim.x)
+    d3d_[i] = 0.0;
+  for (int i = threadIdx.x; i < N * N * 6; i += blockDim.x)
+    q3d_[i] = 0.0;
   __syncthreads();
-
+  device_tensor2d_t<double> s3d(mlao[angi], mlao[angj],    &s3d_[0]); 
+  device_tensor3d_t<double> d3d(mlao[angi], mlao[angj], 3, &d3d_[0]); 
+  device_tensor3d_t<double> q3d(mlao[angi], mlao[angj], 6, &q3d_[0]); 
 
   {
     const int total = cgtoi.nprim * cgtoj.nprim;
@@ -836,9 +820,9 @@ __device__ void multipole_cgto(
         double rpj[3] = {0.0}; 
         double dip[3] = {0.0}; 
         double quad[6] = {0.0};
-        const auto eab = ialpha[ip] + jalpha[jp];
+        const auto eab = cgtoi.alpha[ip] + cgtoj.alpha[jp];
         const auto oab = 1.0 / eab;
-        const auto est = ialpha[ip] * jalpha[jp] * r2 * oab;
+        const auto est = cgtoi.alpha[ip] * cgtoj.alpha[jp] * r2 * oab;
 
         if (est > intcut) continue;
 
@@ -846,12 +830,12 @@ __device__ void multipole_cgto(
         #pragma unroll
         for (int k = 0; k < 3; ++k)
         {
-          rpi[k] = +vec[k] * ialpha[ip] * oab;
-          rpj[k] = -vec[k] * jalpha[jp] * oab;
+          rpi[k] = +vec[k] * cgtoi.alpha[ip] * oab;
+          rpj[k] = -vec[k] * cgtoj.alpha[jp] * oab;
         }
         for (int l = 0; l <= angi + angj + 2; ++l)
           s1d[l] = overlap_1d(l, eab);
-        const double cc = icoeff[ip] * jcoeff[jp] * pre;
+        const double cc = cgtoi.coeff[ip] * cgtoj.coeff[jp] * pre;
 
         for (int mli = 0; mli < mlao[angi]; ++mli)
         {
@@ -860,7 +844,7 @@ __device__ void multipole_cgto(
             double val = 0.0;
             multipole_3d(
               rpi, rpj,
-              ialpha[ip], jalpha[jp], 
+              cgtoi.alpha[ip], cgtoj.alpha[jp], 
               lx[mli + lmap[angi]], lx[mlj + lmap[angj]],
               s1d, val, dip, quad);
             
@@ -1265,7 +1249,23 @@ get_hamiltonian_between_atoms_kernel(
 
           const int ii = bas.iao_sh[is + ish];
           const int jj = bas.iao_sh[js + jsh];
-          
+          __shared__ cgto_type cgtoi, cgtoj; 
+          if(threadIdx.x == 0)
+          {
+            cgtoi.ang = bas.cgto(izp, ish).ang;
+            cgtoj.ang = bas.cgto(jzp, jsh).ang;
+            cgtoi.nprim = bas.cgto(izp, ish).nprim;
+            cgtoj.nprim = bas.cgto(jzp, jsh).nprim;
+          }
+          #pragma unroll
+          for(int i = threadIdx.x; i < MAXG; i+=blockDim.x)
+          {
+            cgtoi.alpha[i] = bas.cgto(izp, ish).alpha[i];
+            cgtoi.coeff[i] = bas.cgto(izp, ish).coeff[i];
+            cgtoj.alpha[i] = bas.cgto(jzp, jsh).alpha[i];
+            cgtoj.coeff[i] = bas.cgto(jzp, jsh).coeff[i];
+          }
+
           __shared__ double vec[3];   // = {0.0};
           __shared__ double r2, rr;
           double dtmpj[3] = {0.0};
@@ -1304,8 +1304,8 @@ get_hamiltonian_between_atoms_kernel(
           device_tensor3d_fixed_t<double, msao[maxl], msao[maxl], 6> qtmpi(&qtmpi_[0]); 
 
           /* Read element-specific parameters from global mem */
-          const int njao = msao[bas.cgto(jzp, jsh).ang];
-          const int niao = msao[bas.cgto(izp, ish).ang];
+          const int njao = msao[cgtoj.ang];
+          const int niao = msao[cgtoi.ang];
 
           multipole_cgto<maxl, msao[maxl]>(
             bas.cgto(jzp, jsh), 

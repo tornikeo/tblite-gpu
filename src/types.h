@@ -102,10 +102,10 @@ inline void printstruct(const adjacency_list &adj)
 }
 
 typedef struct {
-  const int ang;               // Angular momentum of this basis function
-  const int nprim;             // Contraction length of this basis function
-  const double alpha[MAXG];    // Exponent of the primitive Gaussian functions
-  const double coeff[MAXG];    // Contraction coefficients of the primitive Gaussian functions
+  int ang;               // Angular momentum of this basis function
+  int nprim;             // Contraction length of this basis function
+  double alpha[MAXG];    // Exponent of the primitive Gaussian functions
+  double coeff[MAXG];    // Contraction coefficients of the primitive Gaussian functions
 } cgto_type;
 
 __host__ __device__
