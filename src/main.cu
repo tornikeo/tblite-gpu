@@ -696,9 +696,9 @@ __device__ void multipole_cgto(
   device_tensor3d_fixed_t<double, D, D, 3> &dpint,
   device_tensor3d_fixed_t<double, D, D, 6> &qpint)
 {
-  constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13}; 
-  constexpr int mlao[] = {1, 3, 6, 10, 15, 21, 28};
-  constexpr int lmap[] = {0, 1, 4, 10, 20, 35, 56};
+  constexpr int msao[] = {1, 3, 5, /*7, 9, 11, 13   */}; 
+  constexpr int mlao[] = {1, 3, 6, /*10, 15, 21, 28 */};
+  constexpr int lmap[] = {0, 1, 4, /*10, 20, 35, 56 */};
   constexpr int lx[/*84*/][3] = {
     {0,0,0,},
     {0,1,0,},
@@ -842,14 +842,13 @@ __device__ void multipole_cgto(
 
         if (est > intcut) continue;
 
-        const auto pre = exp(-est) * sqrtpi3 * pow(sqrt(oab), 3);
+        const auto pre = exp(-est) * sqrtpi3 * pow(oab, 1.5); /*pow(sqrt(oab), 3)*/;
         #pragma unroll
         for (int k = 0; k < 3; ++k)
         {
           rpi[k] = +vec[k] * ialpha[ip] * oab;
           rpj[k] = -vec[k] * jalpha[jp] * oab;
         }
-        #pragma unroll
         for (int l = 0; l <= angi + angj + 2; ++l)
           s1d[l] = overlap_1d(l, eab);
         const double cc = icoeff[ip] * jcoeff[jp] * pre;
@@ -926,9 +925,9 @@ __device__ void multipole_cgto(
   device_tensor3d_t<double> &dpint,
   device_tensor3d_t<double> &qpint)
 {
-  constexpr int msao[] = {1, 3, 5, 7, 9, 11, 13}; 
-  constexpr int mlao[] = {1, 3, 6, 10, 15, 21, 28};
-  constexpr int lmap[] = {0, 1, 4, 10, 20, 35, 56};
+  constexpr int msao[] = {1, 3, 5, /*7, 9, 11, 13   */}; 
+  constexpr int mlao[] = {1, 3, 6, /*10, 15, 21, 28 */};
+  constexpr int lmap[] = {0, 1, 4, /*10, 20, 35, 56 */};
   constexpr int lx[/*84*/][3] = {
     {0,0,0,},
     {0,1,0,},
@@ -1034,7 +1033,7 @@ __device__ void multipole_cgto(
   #pragma unroll
   for (int i = threadIdx.x; i < N * M * 6; i += blockDim.x)
     q3d_raw[i] = 0.0;
-  device_tensor2d_t<double> s3d(mlao[angi], mlao[angj], &s3d_raw[0]); 
+  device_tensor2d_t<double> s3d(mlao[angi], mlao[angj],    &s3d_raw[0]); 
   device_tensor3d_t<double> d3d(mlao[angi], mlao[angj], 3, &d3d_raw[0]); 
   device_tensor3d_t<double> q3d(mlao[angi], mlao[angj], 6, &q3d_raw[0]); 
 
@@ -1110,8 +1109,10 @@ __device__ void multipole_cgto(
             // d3d(mli,mlj,k) += cc * dip[k];
             #pragma unroll
             for (int k = 0; k < 6; ++k)
+            {
               // q3d(mli,mlj,k) += cc * quad[k];
               atomicAdd(&q3d(mli, mlj, k), cc * quad[k]);
+            }
           }
         }
       }
@@ -1243,6 +1244,7 @@ get_hamiltonian_between_atoms_kernel(
       const int jzp = mol.id[jat];
       const double total_radii = h0.rad[jzp] + h0.rad[izp];
       const auto total_iters = bas.nsh_id[izp] * bas.nsh_id[jzp];
+
       for (int total = blockIdx.z; total < total_iters; total += gridDim.z)
       // for (int ish = blockIdx.z; ish < bas.nsh_id[izp]; ish += gridDim.z)
       {
@@ -1251,12 +1253,17 @@ get_hamiltonian_between_atoms_kernel(
           /////////////////////////////////////////
           // THIS SECTION IS SINGLE THREAD BLOCK
           /////////////////////////////////////////
+          const int ish = total / bas.nsh_id[jzp];
+          const int jsh = total % bas.nsh_id[jzp];
+          
+          const double ishpoly = h0.shpoly(izp, ish);
+          const double jshpoly = h0.shpoly(jzp, jsh);
           const int is = bas.ish_at[iat];
           const int itr = alist.nltr[img + inl];
           const int js = bas.ish_at[jat];
-
-          const int ish = total / bas.nsh_id[jzp];
-          const int jsh = total % bas.nsh_id[jzp];
+          
+          const double scaled_selfenergy = (selfenergy[is + ish] + selfenergy[js + jsh]) *
+                h0.hscale(izp, jzp, ish, jsh);
 
           const int ii = bas.iao_sh[is + ish];
           const int jj = bas.iao_sh[js + jsh];
@@ -1271,10 +1278,16 @@ get_hamiltonian_between_atoms_kernel(
           __syncthreads();
           
           if (threadIdx.x == 0)
+          {
             r2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
-          if (threadIdx.x == 0) 
             rr = sqrt(sqrt(r2) / total_radii); //(h0_jrad + h0_irad));
+          }
           __syncthreads();
+
+
+          const double shpoly = (1.0 + ishpoly * rr) *
+            (1.0 + jshpoly * rr);
+          const double hij = 0.5 * scaled_selfenergy * shpoly;
 
           /* Make stmp, dtmpi and qtmpi integral, shared arrays */
           __shared__ double stmp_ [N * N];
@@ -1294,12 +1307,8 @@ get_hamiltonian_between_atoms_kernel(
           /* Read element-specific parameters from global mem */
           const int njao = msao[bas.cgto(jzp, jsh).ang];
           const int niao = msao[bas.cgto(izp, ish).ang];
-          const double shpoly =  (1.0 + h0.shpoly(izp, ish) * rr) *
-            (1.0 + h0.shpoly(jzp, jsh) * rr);
-          const double hij = 0.5 * (selfenergy[is + ish] + selfenergy[js + jsh]) *
-                h0.hscale(izp, jzp, ish, jsh) * shpoly;
 
-          multipole_cgto<maxl>(
+          multipole_cgto<maxl, msao[maxl]>(
             bas.cgto(jzp, jsh), 
             bas.cgto(izp, ish), 
             r2, vec, bas.intcut, stmp, dtmpi, qtmpi);
@@ -1315,8 +1324,8 @@ get_hamiltonian_between_atoms_kernel(
               const int jao = i % njao;
               shift_operator(iao, jao, vec, stmp, dtmpi, qtmpi, dtmpj, qtmpj); 
 
-              atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
-              // overlap(ii + iao, jj + jao) += stmp(iao, jao);
+              // atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
+              overlap(ii + iao, jj + jao) += stmp(iao, jao);
               
               #pragma unroll
               for (int k = 0; k < 3; ++k)
