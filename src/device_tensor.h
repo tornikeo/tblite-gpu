@@ -12,7 +12,7 @@ public:
   const int dim1, dim2;
   T * data;
   __device__ device_tensor2d_t() : dim1(0), dim2(0), data(nullptr) {}
-  __device__ device_tensor2d_t(int dim1, int dim2, T *data)
+  __device__ device_tensor2d_t(const int dim1, const int dim2, T *data)
   : dim1(dim1), dim2(dim2), data(data) {}
 
   __device__ device_tensor2d_t(const device_tensor2d_t &other)
@@ -27,8 +27,8 @@ public:
     return *this;
   }
 
-  __device__ inline T &operator()(int j, int i, char)
-  {    
+  __device__ inline T &operator()(const int j, const int i, char)
+  {
     #ifndef NDEBUG
     if(i < 1 || i > dim1 || j < 1 || j > dim2)
     {
@@ -40,8 +40,8 @@ public:
     return data[(i - 1) * dim2 + (j - 1)];
   }
 
-  __device__ inline T &operator()(int i, int j)
-  { 
+  __device__ inline T &operator()(const int i, const int j)
+  {
     #ifndef NDEBUG
     if(i < 0 || i >= dim1 || j < 0 || j >= dim2)
     {
@@ -53,7 +53,7 @@ public:
     return data[i * dim2 + j];
   }
 
-  __device__ inline const T &operator()(int j, int i, char) const
+  __device__ inline const T &operator()(const int j, const int i, char) const
   {
     #ifndef NDEBUG
     if(i < 1 || i > dim1 || j < 1 || j > dim2)
@@ -66,7 +66,7 @@ public:
     return data[(i - 1) * dim2 + (j - 1)];
   }
 
-  __device__ inline const T &operator()(int i, int j) const
+  __device__ inline const T &operator()(const int i, const int j) const
   {
     #ifndef NDEBUG
     // need more verbose error message
@@ -128,33 +128,7 @@ public:
     return *this;
   }
 
-  __device__ inline T &operator()(int j, int i, char)
-  {    
-    #ifndef NDEBUG
-    if(i < 1 || i > dim1 || j < 1 || j > dim2)
-    {
-      printf("FORTRAN indexing error: (%i, %i) out of bounds for tensor of size (%i, %i)\n", i, j, dim1, dim2);
-      assert(false);
-    }
-    assert(i >= 1 && i <= dim1 && j >= 1 && j <= dim2);
-    #endif
-    return data[(i - 1) * dim2 + (j - 1)];
-  }
-
-  __device__ inline T &operator()(int i, int j)
-  { 
-    #ifndef NDEBUG
-    if(i < 0 || i >= dim1 || j < 0 || j >= dim2)
-    {
-      printf("Indexing error: (%i, %i) out of bounds for tensor of size (%i, %i)\n", i, j, dim1, dim2);
-      assert(false);
-    }
-    assert(i >= 0 && i < dim1 && j >= 0 && j < dim2);
-    #endif
-    return data[i * dim2 + j];
-  }
-
-  __device__ inline const T &operator()(int j, int i, char) const
+  __device__ inline T &operator()(const int j, const int i, char)
   {
     #ifndef NDEBUG
     if(i < 1 || i > dim1 || j < 1 || j > dim2)
@@ -166,7 +140,33 @@ public:
     #endif
     return data[(i - 1) * dim2 + (j - 1)];
   }
-  __device__ inline const T &operator()(int i, int j) const
+
+  __device__ inline T &operator()(const int i, const int j)
+  {
+    #ifndef NDEBUG
+    if(i < 0 || i >= dim1 || j < 0 || j >= dim2)
+    {
+      printf("Indexing error: (%i, %i) out of bounds for tensor of size (%i, %i)\n", i, j, dim1, dim2);
+      assert(false);
+    }
+    assert(i >= 0 && i < dim1 && j >= 0 && j < dim2);
+    #endif
+    return data[i * dim2 + j];
+  }
+
+  __device__ inline const T &operator()(const int j, const int i, char) const
+  {
+    #ifndef NDEBUG
+    if(i < 1 || i > dim1 || j < 1 || j > dim2)
+    {
+      printf("FORTRAN indexing error: (%i, %i) out of bounds for tensor of size (%i, %i)\n", i, j, dim1, dim2);
+      assert(false);
+    }
+    assert(i >= 1 && i <= dim1 && j >= 1 && j <= dim2);
+    #endif
+    return data[(i - 1) * dim2 + (j - 1)];
+  }
+  __device__ inline const T &operator()(const int i, const int j) const
   {
     #ifndef NDEBUG
     // need more verbose error message
@@ -213,8 +213,8 @@ public:
   T * data;
   __device__ device_tensor3d_t() : dim1(0), dim2(0), dim3(0), data(nullptr) {}
 
-  __device__ device_tensor3d_t(int dim1, int dim2, int dim3, T *data) : dim1(dim1), dim2(dim2), dim3(dim3), data(data) {}
-  
+  __device__ device_tensor3d_t(const int dim1, const int dim2, const int dim3, T *data) : dim1(dim1), dim2(dim2), dim3(dim3), data(data) {}
+
   __device__ device_tensor3d_t(const device_tensor3d_t &other)
   {
     // Warn on use, we shouldn't need this!
@@ -229,7 +229,7 @@ public:
     return *this;
   }
 
-  __device__ inline T &operator()(int k, int j, int i, char )
+  __device__ inline T &operator()(const int k, const int j, const int i, char )
   {    
     #ifndef NDEBUG
     if(i < 1 || i > dim1 || j < 1 || j > dim2 || k < 1 || k > dim3)
@@ -242,7 +242,7 @@ public:
     return data[(i - 1) * dim2 * dim3 + (j - 1) * dim3 + (k - 1)];
   }
 
-  __device__ inline T &operator()(int i, int j, int k)
+  __device__ inline T &operator()(const int i, const int j, const int k)
   {
     #ifndef NDEBUG
     if(i < 0 || i >= dim1 || j < 0 || j >= dim2 || k < 0 || k >= dim3)
@@ -255,7 +255,7 @@ public:
     return data[i * dim2 * dim3 + j * dim3 + k];
   }
 
-  __device__ inline const T &operator()(int k, int j, int i, char ) const
+  __device__ inline const T &operator()(const int k, const  int j, const int i, char ) const
   {
     #ifndef NDEBUG
     if(i < 1 || i > dim1 || j < 1 || j > dim2 || k < 1 || k > dim3)
@@ -268,7 +268,7 @@ public:
     return data[(i - 1) * dim2 * dim3 + (j - 1) * dim3 + (k - 1)];
   }
 
-  __device__ inline const T &operator()(int i, int j, int k) const
+  __device__ inline const T &operator()(const int i, const  int j, const  int k) const
   {
     #ifndef NDEBUG
     if (i < 0 || i >= dim1 || j < 0 || j >= dim2 || k < 0 || k >= dim3)
@@ -335,8 +335,8 @@ class device_tensor3d_fixed_t
     return *this;
   }
 
-  __device__ inline T &operator()(int k, int j, int i, char )
-  {    
+  __device__ inline T &operator()(const int k, const int j, const int i, char )
+  {
     #ifndef NDEBUG
     if(i < 1 || i > dim1 || j < 1 || j > dim2 || k < 1 || k > dim3)
     {
@@ -348,7 +348,7 @@ class device_tensor3d_fixed_t
     return data[(i - 1) * dim2 * dim3 + (j - 1) * dim3 + (k - 1)];
   }
 
-  __device__ inline T &operator()(int i, int j, int k)
+  __device__ inline T &operator()(const int i, const int j, const int k)
   {
     #ifndef NDEBUG
     if(i < 0 || i >= dim1 || j < 0 || j >= dim2 || k < 0 || k >= dim3)
@@ -361,7 +361,7 @@ class device_tensor3d_fixed_t
     return data[i * dim2 * dim3 + j * dim3 + k];
   }
 
-  __device__ inline const T &operator()(int k, int j, int i, char ) const
+  __device__ inline const T &operator()(const int k, const int j, const int i, char ) const
   {
     #ifndef NDEBUG
     if(i < 1 || i > dim1 || j < 1 || j > dim2 || k < 1 || k > dim3)
@@ -374,7 +374,7 @@ class device_tensor3d_fixed_t
     return data[(i - 1) * dim2 * dim3 + (j - 1) * dim3 + (k - 1)];
   }
 
-  __device__ inline const T &operator()(int i, int j, int k) const
+  __device__ inline const T &operator()(const int i, const int j, const int k) const
   {
     #ifndef NDEBUG
     if (i < 0 || i >= dim1 || j < 0 || j >= dim2 || k < 0 || k >= dim3)
