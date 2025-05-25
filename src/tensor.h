@@ -39,7 +39,7 @@ public:
     return data[i];
   }
 
-  __device__ __host__ inline T &operator[](int i)
+  __device__ __host__ inline T &operator[](const int i)
   {
     assert(i >= 0 && i < dim1);
     return data[i];
@@ -93,7 +93,7 @@ public:
   T *data;
   tensor2d_t() : dim1(0), dim2(0), data(nullptr) {}
 
-  tensor2d_t(T *data, int dim1, int dim2) : dim1(dim1), dim2(dim2) {
+  tensor2d_t(T *data, const int dim1, const int dim2) : dim1(dim1), dim2(dim2) {
     if( dim1 <= 0 || dim2 <= 0 )
     {
       fprintf(stderr, "Error: tensor2d_t: invalid dimensions (%i, %i)\n", dim1, dim2); 
@@ -110,13 +110,13 @@ public:
     return dim1 * dim2;
   }
 
-  __device__ __host__ inline T &operator()(int i, int j)
+  __device__ __host__ inline T &operator()(const int i, const int j)
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2);
     return data[i * dim2 + j];
   }
 
-  __device__ __host__ inline const T &operator()(int i, int j) const
+  __device__ __host__ inline const T &operator()(const int i, const int j) const
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2);
     return data[i * dim2 + j];
@@ -163,7 +163,7 @@ public:
 
   tensor3d_t() : dim1(0), dim2(0), dim3(0), data(nullptr) {}
 
-  tensor3d_t(T *data, int dim1, int dim2, int dim3) : dim1(dim1), dim2(dim2), dim3(dim3) {
+  tensor3d_t(T *data, const int dim1, const int dim2, const int dim3) : dim1(dim1), dim2(dim2), dim3(dim3) {
     if( dim1 <= 0 || dim2 <= 0 || dim3 <= 0 )
     {
       fprintf(stderr, "Error: tensor3d_t: invalid dimensions (%i, %i, %i)\n", dim1, dim2, dim3); 
@@ -180,13 +180,13 @@ public:
     return dim1 * dim2 * dim3;
   }
 
-  __device__ __host__ inline T &operator()(int i, int j, int k)
+  __device__ __host__ inline T &operator()(const int i, const int j, const int k)
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3);
     return data[i * dim2 * dim3 + j * dim3 + k];
   }
 
-  __device__ __host__ inline const T &operator()(int i, int j, int k) const
+  __device__ __host__ inline const T &operator()(const int i, const int j, const int k) const
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3);
     return data[i * dim2 * dim3 + j * dim3 + k];
@@ -238,7 +238,7 @@ public:
 
   tensor4d_t() : dim1(0), dim2(0), dim3(0), dim4(0), data(nullptr) {}
 
-  tensor4d_t(T *data, int dim1, int dim2, int dim3, int dim4) : dim1(dim1), dim2(dim2), dim3(dim3), dim4(dim4) {
+  tensor4d_t(T *data, const int dim1, const int dim2, const int dim3, const int dim4) : dim1(dim1), dim2(dim2), dim3(dim3), dim4(dim4) {
     if( dim1 <= 0 || dim2 <= 0 || dim3 <= 0 || dim4 <= 0 )
     {
       fprintf(stderr, "Error: tensor4d_t: invalid dimensions (%i, %i, %i, %i)\n", dim1, dim2, dim3, dim4); 
@@ -255,13 +255,13 @@ public:
     return dim1 * dim2 * dim3 * dim4;
   }
 
-  __device__ __host__ inline T &operator()(int i, int j, int k, int l)
+  __device__ __host__ inline T &operator()(const int i, const int j, const int k, const int l)
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3 && l >= 0 && l < dim4);
     return data[i * dim2 * dim3 * dim4 + j * dim3 * dim4 + k * dim4 + l];
   }
-  
-  __device__ __host__ inline const T &operator()(int i, int j, int k, int l) const
+
+  __device__ __host__ inline const T &operator()(const int i, const int j, const int k, const int l) const
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3 && l >= 0 && l < dim4);
     return data[i * dim2 * dim3 * dim4 + j * dim3 * dim4 + k * dim4 + l];
