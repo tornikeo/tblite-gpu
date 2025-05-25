@@ -754,25 +754,42 @@ get_hamiltonian_between_atoms_kernel(
           __shared__ cgto_type cgtoi, cgtoj; 
           if(threadIdx.x == 0)
           {
-            cgtoi.ang = bas.cgto(izp, ish).ang;
-            cgtoj.ang = bas.cgto(jzp, jsh).ang;
-            cgtoi.nprim = bas.cgto(izp, ish).nprim;
-            cgtoj.nprim = bas.cgto(jzp, jsh).nprim;
+            auto &cgto = bas.cgto(izp, ish);
+            cgtoi.ang =   cgto.ang;
+            cgtoi.nprim = cgto.nprim;
           }
-          #pragma unroll
-          for(int i = threadIdx.x; i < MAXG; i+=blockDim.x)
+          if(threadIdx.x == 0)
           {
-            cgtoi.alpha[i] = bas.cgto(izp, ish).alpha[i];
-            cgtoi.coeff[i] = bas.cgto(izp, ish).coeff[i];
-            cgtoj.alpha[i] = bas.cgto(jzp, jsh).alpha[i];
-            cgtoj.coeff[i] = bas.cgto(jzp, jsh).coeff[i];
+            const auto &cgto = bas.cgto(jzp, jsh);
+            cgtoj.ang =   cgto.ang;
+            cgtoj.nprim = cgto.nprim;
+          }
+          {
+            const auto &cgto = bas.cgto(izp, ish);
+            #pragma unroll
+            for(int i = threadIdx.x; i < MAXG; i+=blockDim.x)
+            {
+              cgtoi.alpha[i] = cgto.alpha[i];
+              cgtoi.coeff[i] = cgto.coeff[i];
+            }
+          }
+          {
+            const auto &cgto = bas.cgto(jzp, jsh);
+            #pragma unroll
+            for(int i = threadIdx.x; i < MAXG; i+=blockDim.x)
+            {
+              cgtoj.alpha[i] = cgto.alpha[i];
+              cgtoj.coeff[i] = cgto.coeff[i];
+            }
           }
 
           __shared__ double vec[3];   // = {0.0};
           __shared__ double r2, rr;
           
           for (int k = threadIdx.x; k < 3; k+=blockDim.x)
+          {
             vec[k] = mol.xyz(iat, k) - mol.xyz(jat, k) - trans(itr, k);
+          }
           __syncthreads();
           
           if (threadIdx.x == 0)
@@ -829,6 +846,7 @@ get_hamiltonian_between_atoms_kernel(
               shift_operator(iao, jao, vec, stmp, dtmpi, qtmpi, dtmpj, qtmpj); 
 
               // atomicAdd(&overlap(ii + iao, jj + jao), stmp(iao, jao));
+              // const auto ij = iao * njao + jao;
               overlap(ii + iao, jj + jao) += stmp(iao, jao);
               
               #pragma unroll
@@ -1127,6 +1145,11 @@ extern "C" void cuda_get_hamiltonian_kernel_(
     // double * time
 )
 {
+  float transfer_time_in = 0.0f;
+  cudaEvent_t start, stop;
+  cudaEventCreate(&start); cudaEventCreate(&stop);
+  cudaEventRecord(start);
+
   const adjacency_list alist{
       tensor1d_t(alist_inl, alist_inl_dim1),
       tensor1d_t(alist_nnl, alist_nnl_dim1),
@@ -1168,7 +1191,6 @@ extern "C" void cuda_get_hamiltonian_kernel_(
       tensor1d_t(bas_sh2at, bas_sh2at_dim1),
       tensor2d_t(cgto, cgto_dim1, cgto_dim2)};
   
-
   const tensor2d_t<const double> trans_ten(trans, trans_dim1, trans_dim2);
   const tensor1d_t<const double> selfenergy_ten(selfenergy, nelem);
   tensor2d_t<double> overlap_ten(overlap, nao, nao);
@@ -1176,6 +1198,10 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   tensor3d_t<double> qpint_ten(qpint, nao, nao, 6);
   tensor2d_t<double> hamiltonian_ten(hamiltonian, nao, nao);
   
+  cudaEventRecord(stop); cudaEventSynchronize(stop);
+  cudaEventElapsedTime(&transfer_time_in, start, stop);
+  cudaEventDestroy(start); cudaEventDestroy(stop);
+
   /////////////////////////////////////////////
   // Calculate total number of bytes transferred
   /////////////////////////////////////////////
@@ -1236,10 +1262,10 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   ////////////////////////////////////////////
   // Launch kernel part I, between-atom interactions
   ////////////////////////////////////////////
-  cudaEvent_t start, stop;
   float total_time = 0;
-  float milliseconds = 0;
   {
+    cudaEvent_t start, stop;
+    float milliseconds = 0;
     cudaDeviceSynchronize();
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
     get_hamiltonian_between_atoms(
@@ -1273,6 +1299,8 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   // Launch kernel part II, in-atom interactions
   ////////////////////////////////////////////
   {
+    cudaEvent_t start, stop;
+    float milliseconds = 0;
     cudaEventCreate(&start); cudaEventCreate(&stop); cudaEventRecord(start);
     get_hamiltonian_in_atoms(
       mol,
@@ -1298,10 +1326,22 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   ////////////////////////////
   // copy data back to host
   ////////////////////////////
-  memcpy(overlap, overlap_ten.data, overlap_ten.size() * sizeof(double));
-  memcpy(dpint, dpint_ten.data, dpint_ten.size() * sizeof(double));
-  memcpy(qpint, qpint_ten.data, qpint_ten.size() * sizeof(double));
-  memcpy(hamiltonian, hamiltonian_ten.data, hamiltonian_ten.size() * sizeof(double));
+  float transfer_time_out = 0.0f;
+  {
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start); cudaEventCreate(&stop);
+    cudaEventRecord(start);
+
+    memcpy(overlap, overlap_ten.data, overlap_ten.size() * sizeof(double));
+    memcpy(dpint, dpint_ten.data, dpint_ten.size() * sizeof(double));
+    memcpy(qpint, qpint_ten.data, qpint_ten.size() * sizeof(double));
+    memcpy(hamiltonian, hamiltonian_ten.data, hamiltonian_ten.size() * sizeof(double));
+
+    cudaEventRecord(stop); cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&transfer_time_out, start, stop);
+    printf("gpu_transfer_time %f ms\n", transfer_time_out + transfer_time_in);
+    cudaEventDestroy(start); cudaEventDestroy(stop);
+  }
 
   ///////////////////////////
   // free cuda memory

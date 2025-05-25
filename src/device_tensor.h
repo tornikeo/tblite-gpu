@@ -210,10 +210,13 @@ class device_tensor3d_t
 {
 public:
   const int dim1, dim2, dim3;
+  int s1;
   T * data;
-  __device__ device_tensor3d_t() : dim1(0), dim2(0), dim3(0), data(nullptr) {}
+  __device__ device_tensor3d_t() : dim1(0), dim2(0), dim3(0), s1(0), data(nullptr) {}
 
-  __device__ device_tensor3d_t(const int dim1, const int dim2, const int dim3, T *data) : dim1(dim1), dim2(dim2), dim3(dim3), data(data) {}
+  __device__ device_tensor3d_t(const int dim1, const int dim2, const int dim3, T *data) : dim1(dim1), dim2(dim2), dim3(dim3), data(data) {
+    this->s1 = dim2 * dim3;
+  }
 
   __device__ device_tensor3d_t(const device_tensor3d_t &other)
   {
@@ -239,7 +242,7 @@ public:
     }
     assert(i >= 1 && i <= dim1 && j >= 1 && j <= dim2 && k >= 1 && k <= dim3);
     #endif
-    return data[(i - 1) * dim2 * dim3 + (j - 1) * dim3 + (k - 1)];
+    return data[(i - 1) * s1 + (j - 1) * dim3 + (k - 1)];
   }
 
   __device__ inline T &operator()(const int i, const int j, const int k)
@@ -252,7 +255,7 @@ public:
     }
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3);
     #endif
-    return data[i * dim2 * dim3 + j * dim3 + k];
+    return data[i * s1 + j * dim3 + k];
   }
 
   __device__ inline const T &operator()(const int k, const  int j, const int i, char ) const
@@ -265,7 +268,7 @@ public:
     }
     assert(i >= 1 && i <= dim1 && j >= 1 && j <= dim2 && k >= 1 && k <= dim3);
     #endif
-    return data[(i - 1) * dim2 * dim3 + (j - 1) * dim3 + (k - 1)];
+    return data[(i - 1) * s1 + (j - 1) * dim3 + (k - 1)];
   }
 
   __device__ inline const T &operator()(const int i, const  int j, const  int k) const
@@ -278,7 +281,7 @@ public:
     }
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3);
     #endif
-    return data[i * dim2 * dim3 + j * dim3 + k];
+    return data[i * s1 + j * dim3 + k];
   }
   __device__ inline void fill(const T &value)
   {
@@ -317,6 +320,7 @@ class device_tensor3d_fixed_t
   static constexpr int dim1 = D1;
   static constexpr int dim2 = D2;
   static constexpr int dim3 = D3;
+  static constexpr int s1 = D2 * D3;
   T * data;
   __device__ device_tensor3d_fixed_t() : data(nullptr) {}
   __device__ device_tensor3d_fixed_t(T *data) : data(data) {}
@@ -345,7 +349,7 @@ class device_tensor3d_fixed_t
     }
     assert(i >= 1 && i <= dim1 && j >= 1 && j <= dim2 && k >= 1 && k <= dim3);
     #endif
-    return data[(i - 1) * dim2 * dim3 + (j - 1) * dim3 + (k - 1)];
+    return data[(i - 1) * s1 + (j - 1) * dim3 + (k - 1)];
   }
 
   __device__ inline T &operator()(const int i, const int j, const int k)
@@ -358,7 +362,7 @@ class device_tensor3d_fixed_t
     }
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3);
     #endif
-    return data[i * dim2 * dim3 + j * dim3 + k];
+    return data[i * s1 + j * dim3 + k];
   }
 
   __device__ inline const T &operator()(const int k, const int j, const int i, char ) const
@@ -371,7 +375,7 @@ class device_tensor3d_fixed_t
     }
     assert(i >= 1 && i <= dim1 && j >= 1 && j <= dim2 && k >= 1 && k <= dim3);
     #endif
-    return data[(i - 1) * dim2 * dim3 + (j - 1) * dim3 + (k - 1)];
+    return data[(i - 1) * s1 + (j - 1) * dim3 + (k - 1)];
   }
 
   __device__ inline const T &operator()(const int i, const int j, const int k) const
@@ -384,11 +388,11 @@ class device_tensor3d_fixed_t
     }
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3);
     #endif
-    return data[i * dim2 * dim3 + j * dim3 + k];
+    return data[i * s1 + j * dim3 + k];
   }
   __device__ inline void fill(const T &value)
   {
-    const int size = dim1 * dim2 * dim3;
+    const int size = s1 * dim3;
     for (int i = 0; i < size; ++i)
     {
       data[i] = value;

@@ -158,10 +158,11 @@ template <typename T>
 class tensor3d_t
 {
 public:
-  const int dim1, dim2, dim3;
+  const unsigned int dim1, dim2, dim3;
+  unsigned int s1;
   T *data;
 
-  tensor3d_t() : dim1(0), dim2(0), dim3(0), data(nullptr) {}
+  tensor3d_t() : dim1(0), dim2(0), dim3(0), s1(0), data(nullptr) {}
 
   tensor3d_t(T *data, const int dim1, const int dim2, const int dim3) : dim1(dim1), dim2(dim2), dim3(dim3) {
     if( dim1 <= 0 || dim2 <= 0 || dim3 <= 0 )
@@ -173,6 +174,7 @@ public:
     CUDA_CHECK(cudaMallocManaged(&data_new, size() * sizeof(T)));
     CUDA_CHECK(cudaMemcpy((void *)data_new, data, size() * sizeof(T), cudaMemcpyHostToDevice));
     this->data = data_new;
+    this->s1 = dim2 * dim3; // stride for first dimension
   }
 
   __device__ __host__ inline int size() const
@@ -183,13 +185,13 @@ public:
   __device__ __host__ inline T &operator()(const int i, const int j, const int k)
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3);
-    return data[i * dim2 * dim3 + j * dim3 + k];
+    return data[i * s1 + j * dim3 + k];
   }
 
   __device__ __host__ inline const T &operator()(const int i, const int j, const int k) const
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3);
-    return data[i * dim2 * dim3 + j * dim3 + k];
+    return data[i * s1 + j * dim3 + k];
   }
 
   __host__ __device__ inline void fill(const T &value)
@@ -234,9 +236,10 @@ class tensor4d_t
 {
 public:
   const int dim1, dim2, dim3, dim4;
+  int s1, s2;
   T *data;
 
-  tensor4d_t() : dim1(0), dim2(0), dim3(0), dim4(0), data(nullptr) {}
+  tensor4d_t() : dim1(0), dim2(0), dim3(0), dim4(0), s1(0), s2(0), data(nullptr) {}
 
   tensor4d_t(T *data, const int dim1, const int dim2, const int dim3, const int dim4) : dim1(dim1), dim2(dim2), dim3(dim3), dim4(dim4) {
     if( dim1 <= 0 || dim2 <= 0 || dim3 <= 0 || dim4 <= 0 )
@@ -248,6 +251,8 @@ public:
     CUDA_CHECK(cudaMallocManaged(&data_new, size() * sizeof(T)));
     CUDA_CHECK(cudaMemcpy((void *)data_new, data, size() * sizeof(T), cudaMemcpyHostToDevice));
     this->data = data_new;
+    this->s1 = dim2 * dim3 * dim4; // stride for first dimension
+    this->s2 = dim3 * dim4; // stride for second dimension
   }
 
   __device__ __host__ inline int size() const
@@ -258,13 +263,13 @@ public:
   __device__ __host__ inline T &operator()(const int i, const int j, const int k, const int l)
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3 && l >= 0 && l < dim4);
-    return data[i * dim2 * dim3 * dim4 + j * dim3 * dim4 + k * dim4 + l];
+    return data[i * s1 + j * s2 + k * dim4 + l];
   }
 
   __device__ __host__ inline const T &operator()(const int i, const int j, const int k, const int l) const
   {
     assert(i >= 0 && i < dim1 && j >= 0 && j < dim2 && k >= 0 && k < dim3 && l >= 0 && l < dim4);
-    return data[i * dim2 * dim3 * dim4 + j * dim3 * dim4 + k * dim4 + l];
+    return data[i * s1 + j * s2 + k * dim4 + l];
   }
 
   __host__ __device__ inline void fill(const T &value)
