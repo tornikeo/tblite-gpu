@@ -1339,7 +1339,7 @@ extern "C" void cuda_get_hamiltonian_kernel_(
 
     cudaEventRecord(stop); cudaEventSynchronize(stop);
     cudaEventElapsedTime(&transfer_time_out, start, stop);
-    printf("gpu_transfer_time %f ms\n", transfer_time_out + transfer_time_in);
+    printf("gpu_transfer_time %f\n", transfer_time_out + transfer_time_in);
     cudaEventDestroy(start); cudaEventDestroy(stop);
   }
 
@@ -1381,4 +1381,6 @@ extern "C" void cuda_get_hamiltonian_kernel_(
   cudaFree(dpint_ten.data);
   cudaFree(qpint_ten.data);
   cudaFree(hamiltonian_ten.data);
+
+  fflush(stdout);
 }
