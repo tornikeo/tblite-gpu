@@ -605,10 +605,16 @@ __device__ void multipole_cgto(
           s1d[l] = overlap_1d(l, eab);
         }
 
-        for (int mli = 0; mli < mlao[iang]; ++mli)
+        const auto total = mlao[iang] * mlao[jang];
+        for(int i = 0; i < total; ++i)
+        // for (int mli = 0; mli < mlao[iang]; ++mli)
         {
-          for (int mlj = 0; mlj < mlao[jang]; ++mlj)
+          // for (int mlj = 0; mlj < mlao[jang]; ++mlj)
           {
+            const auto strided = (i + threadIdx.x * 3) % total; // ensure all threads are used
+            const int mli = strided / mlao[jang];
+            const int mlj = strided % mlao[jang];
+
             double val = 0.0;
             multipole_3d(
               rpi, rpj,
@@ -616,19 +622,22 @@ __device__ void multipole_cgto(
               lx[mli + lmap[iang]], lx[mlj + lmap[jang]],
               s1d, val, dip, quad);
             
-            // s3d(mli, mlj) += cc * val;
             atomicAdd(&s3d(mli, mlj), cc * val);
+            // s3d(mli, mlj) += cc * val;
+            
             #pragma unroll
             for (int k = 0; k < 3; ++k)
             {
               atomicAdd(&d3d(mli, mlj, k), cc * dip[k]);
+              // d3d(mli, mlj, k) += cc * dip[k];
             }
 
-            // d3d(mli,mlj,k) += cc * dip[k];
             #pragma unroll
             for (int k = 0; k < 6; ++k)
-              // q3d(mli,mlj,k) += cc * quad[k];
+            {
               atomicAdd(&q3d(mli, mlj, k), cc * quad[k]);
+              // q3d(mli,mlj,k) += cc * quad[k];
+            }
           }
         }
       }
