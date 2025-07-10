@@ -922,6 +922,7 @@ void get_hamiltonian_between_atoms(
   tensor2d_t<double> hamiltonian)
 {
   dim3 dimGrid(batch_size * mol.nat, alist.nnl.max(), bas.nsh_id.max() * bas.nsh_id.max());
+  // printf("launching grid (%d, %d, %d)\n", dimGrid.x, dimGrid.y, dimGrid.z);
   dim3 dimBlock(MAX_THREADS_PER_BLOCK, 1, 1);
   switch(bas.maxl)
   {

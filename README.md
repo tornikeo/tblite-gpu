@@ -1,53 +1,56 @@
-# tblite-gpu
+# GPU Extensions for tblite
 
-This repository contains kernels for fast calculation of the `get_hamiltonian` function using NVIDIA CUDA GPUs. 
+[![License](https://img.shields.io/github/license/tblite/tblite)](https://github.com/tornikeo/tblite-gpu/blob/HEAD/COPYING.LESSER)
 
-Currently, only one function, `get_hamiltonian` is "kernelized". **NOTE** `get_hamiltonian` by itself is not all that useful. Other routines are needed to be ported to a GPU for this to become useful. Additionally, only the elements up to **Argon** are supported.
+This project is an effort to use GPUs to accelerate [Light-weight tight-binding framework](https://github.com/tblite/tblite) (tblite) calculations.
 
-# Performance comparison
-By itself, the current implementation of `get_hamiltonian` has the following performance profile:
+![alt text](assets/speedup.png)
 
-## Scalability with Atom Count
-A plot demonstrating how the runtime scales with an increasing number of atoms for each hardware type:
+## Overview
 
-```
-y_axis time
-number of atoms (h2 to an entire protein)
-lines: black 1 i9-14900HX CPU
-         shades of green, dark to lime
-- T4
-- RTX 4060 Laptop
-- A100 80GB
-- H100 80GB
-```
+Currently, *tblite-gpu* contains two GPU kernels for fast Fock matrix integral calculations. Concretely, this is what happens when you compile and use *tblite-gpu*:
 
-## Scalability depending on molecule class
+![alt text](assets/tblite-gpu-flow.png)
 
-```
-y_axis: time
-x_axis: adjacent bars, black - cpu, green gpus
-bar type: chemical type:
-  long alkanes, proteins, DNA, other polymers.
-```
+The bulk of the complex Fock matrix logic happens in *tblite*, while the computationally demanding parts are offloaded to a GPU by using the GPU library `libtblite-gpu.so`. Anything that uses tblite (*[QCxMS](https://github.com/qcxms/QCxMS)*, *[QCxMS2](https://github.com/grimme-lab/QCxMS2)*, etc.) can also use *tblite-gpu*.
 
-##  Memory Usage
-A graph showing the memory usage for each hardware type during the computation. This can be useful for understanding resource requirements.
+Both kernels are defined inside the [src/main.cu](./src/main.cu) file. These kernels are used for building the Fock matrix:
 
-```
-y_axis GBs.
-x_axis number of atoms.
-lines: black any CPU
-       blue any GPU
-denoted are limits for different GPUs, on y horizontal lines
-```
+![alt text](assets/scf-workflow.png)
 
-## Kernel Execution Time Breakdown
-A pie chart for showing what takes time inside the kernel.
+Calculation of the Fock matrix is done in parallel because GPUs excel at parallelism. Here is how the parallelism works in these kernels:
 
-```
+![alt text](assets/parallelism.png)
 
+All atomic orbitals are calculated using a CUDA thread block, and each thread in the block integrates a pair of primitive Gaussians.
+
+The result is the following speedups for Fock matrix calculations:
+
+![alt text](assets/results.png)
+
+A single H100 GPU shows up to a 250x speedup over a 32-core CPU node.
+
+## Installation
+
+### Building from Source
+
+You need an NVIDIA GPU with compute capability >= 6.0, and the NVIDIA CUDA C compiler (`nvcc`):
+
+```sh
+$ nvcc --version
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2024 NVIDIA Corporation
+Built on Thu_Mar_28_02:18:24_PDT_2024
+Cuda compilation tools, release 12.4, V12.4.131
+Build cuda_12.4.r12.4/compiler.34097967_0
 ```
 
-# Future plans
+To build tblite-gpu from source, you need to build and install [tblite (fork)](https://github.com/tornikeo/tblite) from source first.
 
-Batched kernel implementation.
+# License
+
+This project is free software: you can redistribute it and/or modify it under the terms of the Lesser GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This project is distributed in the hope that it will be useful, but without any warranty; without even the implied warranty of merchantability or fitness for a particular purpose. See the Lesser GNU General Public License for more details.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this project by you, as defined in the Lesser GNU General Public License, shall be licensed as above, without any additional terms or conditions.
